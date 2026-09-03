@@ -1,0 +1,80 @@
+/* Design tokens (spec §8). Dark values on :root, light values under [data-theme="light"]. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces and text */
+  --bg: oklch(14% 0.01 60);
+  --surface-1: oklch(19% 0.012 60);
+  --surface-2: oklch(24% 0.014 60);
+  --border: oklch(32% 0.02 60);
+  --text: oklch(96% 0.01 80);
+  --text-muted: oklch(72% 0.02 80);
+
+  /* Accent and status */
+  --accent: oklch(70% 0.2 45);
+  --accent-hover: oklch(76% 0.2 45);
+  --on-accent: oklch(14% 0.02 45);
+  --success: oklch(75% 0.17 150);
+  --danger: oklch(68% 0.2 25);
+  --warning: oklch(80% 0.16 85);
+
+  /* Type hues (spec §8): lightness 72% / chroma 0.16 in dark, lightness 55% in light. */
+  --hue-l: 72%;
+  --hue-c: 0.16;
+  --hue-prelekcja: 45;
+  --hue-prelekcja-z-sesja: 25;
+  --hue-warsztaty: 340;
+  --hue-fotospacer: 95;
+  --hue-fotogra: 95;
+  --hue-playground: 175;
+  --hue-strefa-sprzetu: 240;
+  --hue-teleobiektywy: 260;
+  --hue-ogolne: 0;
+  --hue-other: 300;
+  --chroma-neutral: 0;
+
+  /* Shape and depth */
+  --radius-card: 8px;
+  --radius-sheet: 12px;
+  --radius-chip: 999px;
+  --shadow-1: 0 1px 2px oklch(0% 0 0 / 0.35), 0 4px 12px oklch(0% 0 0 / 0.25);
+  --shadow-2: 0 2px 4px oklch(0% 0 0 / 0.4), 0 12px 28px oklch(0% 0 0 / 0.35);
+
+  /* Typography */
+  --font-display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-base: 15px;
+  --text-card: 13px;
+  --text-min: 12px;
+
+  /* Layout */
+  --rail-width: 56px;
+  --sidebar-width: 280px;
+  --glow-opacity: 0.3;
+  --grain-opacity: 0.04;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: oklch(98% 0.005 80);
+  --surface-1: oklch(100% 0 0);
+  --surface-2: oklch(95% 0.01 80);
+  --border: oklch(86% 0.015 80);
+  --text: oklch(20% 0.02 60);
+  --text-muted: oklch(45% 0.02 60);
+
+  --accent: oklch(60% 0.2 45);
+  --accent-hover: oklch(54% 0.2 45);
+  --on-accent: oklch(98% 0.01 45);
+  --success: oklch(45% 0.17 150);
+  --danger: oklch(45% 0.2 25);
+  --warning: oklch(45% 0.16 85);
+
+  --hue-l: 55%;
+
+  --shadow-1: 0 1px 2px oklch(0% 0 0 / 0.08), 0 4px 12px oklch(0% 0 0 / 0.08);
+  --shadow-2: 0 2px 4px oklch(0% 0 0 / 0.1), 0 12px 28px oklch(0% 0 0 / 0.14);
+
+  --glow-opacity: 0.12;
+}
