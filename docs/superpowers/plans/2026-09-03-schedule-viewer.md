@@ -68,7 +68,7 @@ conference-melt/
     state/
       store.ts                 Zustand store, actions, persist config, defaultSettings()
       hash.ts                  parseHash(), writeHash()
-      boot.ts                  resolveBoot(): day/view/sharedPlan from hash + storage + defaults
+      boot.ts                  resolveBoot(): day/view/sharedPlan/favourites from hash + storage + defaults
       derive.ts                daySets(), buildColumns(), resolveTimeMode(), layout/visible/rendered sets
       theme.ts                 applyTheme()
       clipboard.ts             copyText() with fallback signal
@@ -331,14 +331,16 @@ export function parseHash(hash: string): HashState;                  // "#d=pt&v
 export function buildHash(h: HashState): string;                     // "#d=pt&v=grid" (+ "&plan=..." when present), always in d,v,plan order
 export function writeHash(h: HashState): void;                       // history.replaceState(null, "", buildHash(h))
 // boot.ts
-export interface BootResult { day: string; view: View; sharedPlan: SharedPlan | null }
-export function resolveBoot(args: { hash: string; persistedView: View | null; viewportWidth: number; data: ScheduleData; index: DataIndex; now: Date }): BootResult;
+export interface BootResult { day: string; view: View; sharedPlan: SharedPlan | null; favourites: string[]; droppedFavourites: number }
+export function resolveBoot(args: { hash: string; persistedView: View | null; persistedFavourites: string[]; viewportWidth: number; data: ScheduleData; index: DataIndex; now: Date }): BootResult;
 // theme.ts
 export function applyTheme(theme: Settings["theme"]): void;         // sets document.documentElement.dataset.theme to "dark"|"light"
 export function watchSystemTheme(get: () => Settings["theme"]): () => void; // re-applies on prefers-color-scheme change, returns unsubscribe
 // clipboard.ts
 export async function copyText(text: string): Promise<boolean>;      // false when clipboard missing or rejects
 ```
+
+`favourites` is `persistedFavourites` filtered to ids present in `index.sessionIds`; `droppedFavourites` is how many were removed (spec §6).
 
 ### `src/state/derive.ts`
 
@@ -370,7 +372,7 @@ export function densityFor(density: Settings["density"], coarsePointer: boolean)
 export interface TimelineRange { start: number; end: number }             // minutes, spec §7.2 rounding + 15 padding
 export function timelineRange(layout: TimedSession[]): TimelineRange;    // layout non-empty
 export interface CardGeometry { top: number; height: number; lane: number; lanes: number }
-export function timelineGeometry(column: Column, range: TimelineRange, zoom: number, minCardHeight: number): { columnWidth: number; columnLanes: number; cards: Map<string, CardGeometry> };
+export function timelineGeometry(column: Column, range: TimelineRange, zoom: number, density: Density): { columnWidth: number; columnLanes: number; cards: Map<string, CardGeometry> };
 export function cardStyle(g: CardGeometry): { top: string; height: string; left: string; width: string }; // px / calc(...) strings per spec §7.2
 export interface SlotPlacement { kind: "card" | "span" | "stub"; sessionId: string; column: number; row: number; span: number } // row/column are 0-based slot/column indices
 export function slotPlacements(column: Column, columnIndex: number, slots: Slot[], tolerance: number, renderedIds: Set<string>): SlotPlacement[];
@@ -556,7 +558,7 @@ export function buildFriLecturesFixture(data: ScheduleData): ScheduleData;
 - Task 34: Motion and eye-candy
 - Task 35: Build and verification
 
-Tasks within a phase depend on the previous task; phases depend on all earlier phases. Task 8 needs network access to swiatlosila.pl.
+Tasks within a phase depend on the previous task; phases depend on all earlier phases. Task 8 needs network access to swiatlosila.pl. Task 23 creates placeholder modules for the components that Tasks 26–33 replace, so typecheck, tests and build stay green at every task boundary.
 
 ---
 
@@ -2038,6 +2040,7 @@ Design notes for the implementer: the rewriter scans the input with one tag rege
 Create `scripts/__tests__/sanitize.test.ts` with this content. Every "speaker NNNN" constant is a verbatim excerpt of `content.rendered` from the 2026-09-03 `cyfrowe-prelegent` snapshot.
 
 ```ts
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { bioHtml, decodeEntities, isBlankHtml, sanitizeHtml, stripTags } from "../lib/sanitize";
 
@@ -2425,6 +2428,7 @@ EOF_COMMIT
 Create `scripts/__tests__/parse.test.ts`. The `P_NNNNN` constants are the verbatim inner HTML of the first `<p>` of those events in the 2026-09-03 snapshot (`CONTENT_*` are complete `content.rendered` values); do not "tidy" them.
 
 ```ts
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
   extractAnchors,
@@ -3199,6 +3203,7 @@ Create `scripts/__tests__/locations.fixture.json`. One entry per `cyfrowe-event-
 Create `scripts/__tests__/locations.test.ts`:
 
 ```ts
+// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Level } from "../../src/data/types";
@@ -4271,6 +4276,7 @@ Create `scripts/__tests__/normalize.test.ts`:
 ```ts
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import type { WpSpeaker } from "../lib/api";
 import { normalizeAll } from "../lib/normalize";
 import { makeRaw } from "./raw.fixture";
 
@@ -4421,6 +4427,43 @@ describe("normalizeAll", () => {
   it("warns exactly once, about the anchor resolved by name", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^Event 1001 .*resolved by name to 134 Emil Biliński$/);
+  });
+
+  it("leaves an anchor whose text matches two speakers by name unresolved and keeps its text in the byline", () => {
+    const raw = makeRaw();
+    const twin = (id: number, slug: string): WpSpeaker => ({
+      id,
+      slug,
+      link: `https://swiatlosila.pl/cyfrowe-prelegent/${slug}/`,
+      title: { rendered: "Jan Kowalski" },
+      content: { rendered: "<p>Bio.</p>" },
+      featured_media: 0,
+      "cyfrowe-prelegent-type": [24],
+    });
+    raw.speakers.push(twin(901, "jan-kowalski"), twin(902, "jan-kowalski-2"));
+    raw.events.push({
+      id: 1004,
+      slug: "swiatlo-w-studio",
+      link: "https://swiatlosila.pl/cyfrowe-event/swiatlo-w-studio/",
+      title: { rendered: "Światło w studio" },
+      content: {
+        rendered:
+          '<p>13:00-14:00, <a href="https://swiatlosila.pl/cyfrowe-prelegent/stary-slug/">Kowalski Jan</a></p>',
+      },
+      "cyfrowe-event-type": [184],
+      "cyfrowe-event-theme": [],
+      "cyfrowe-event-brand": [],
+      "cyfrowe-event-location": [233],
+      "cyfrowe-event-day": [53],
+      "cyfrowe-event-zapisy": [],
+    });
+    const result = normalizeAll(raw, OPTS);
+    const session = result.data.sessions.find((s) => s.id === "1004:pt");
+    expect(session).toMatchObject({ speakerIds: [], byline: "Kowalski Jan" });
+    expect(result.warnings).toContainEqual(expect.stringContaining("did not resolve; its text stays in the byline"));
+    expect(result.warnings.filter((w) => w.startsWith("Event 1004 "))).toEqual([
+      'Event 1004 "Światło w studio": speaker anchor "Kowalski Jan" (https://swiatlosila.pl/cyfrowe-prelegent/stary-slug/) did not resolve; its text stays in the byline',
+    ]);
   });
 
   it("produces identical data regardless of the raw input order", () => {
@@ -4736,7 +4779,7 @@ export function normalizeAll(
 npx vitest run scripts/__tests__/normalize.test.ts
 ```
 
-Expected: 11 tests pass. If `bioHtml` or `descriptionHtml` assertions fail on whitespace only, the sanitizer from the earlier task is emitting text nodes between paragraphs; fix the sanitizer (spec §4.3 keeps no text outside allowed elements' content), not the assertion.
+Expected: 12 tests pass. If `bioHtml` or `descriptionHtml` assertions fail on whitespace only, the sanitizer from the earlier task is emitting text nodes between paragraphs; fix the sanitizer (spec §4.3 keeps no text outside allowed elements' content), not the assertion.
 
 - [ ] **Step 10: Write the failing validate test**
 
@@ -4926,7 +4969,7 @@ git commit -m "feat(scripts): normalize WordPress events into ScheduleData and v
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 ```
 
-Expected: 22 tests pass (11 normalize, 11 validate).
+Expected: 23 tests pass (12 normalize, 11 validate).
 
 - [ ] **Step 14: Write the shared ScheduleData test helpers**
 
@@ -5392,7 +5435,7 @@ git commit -m "feat(scripts): add slot-set fixtures and the fetch-schedule CLI" 
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 ```
 
-Expected: every file under `scripts/__tests__` passes (this task adds 40 tests: 7 api, 11 normalize, 11 validate, 6 slot-sets, 5 fixtures, on top of the earlier sanitize, parse, locations and speakers tests) and `npm run typecheck` reports no errors for either tsconfig. The CLI is covered by the `tsconfig.node.json` typecheck.
+Expected: every file under `scripts/__tests__` passes (this task adds 41 tests: 7 api, 12 normalize, 11 validate, 6 slot-sets, 5 fixtures, on top of the earlier sanitize, parse, locations and speakers tests) and `npm run typecheck` reports no errors for either tsconfig. The CLI is covered by the `tsconfig.node.json` typecheck.
 
 ---
 
@@ -5405,7 +5448,7 @@ Expected: every file under `scripts/__tests__` passes (this task adds 40 tests: 
 
 **Interfaces:**
 - Consumes: `npm run fetch` (`tsx scripts/fetch-schedule.ts`) from Task 7 and, through it, everything under `scripts/lib/`.
-- Produces: the three generated files that every later task imports: `src/data/index.ts` imports `src/data/schedule.json`; the slot tests load `src/test/fixtures/slot-sets.json`; component tests load `src/test/fixtures/fri-lectures.json`. Never hand-edit any of them (Global Constraints).
+- Produces: the three generated files that every later task imports: `src/data/index.tsx` imports `src/data/schedule.json`; the slot tests load `src/test/fixtures/slot-sets.json`; component tests load `src/test/fixtures/fri-lectures.json`. Never hand-edit any of them (Global Constraints).
 
 All expected numbers below were computed from the 2026-09-03 API responses and match spec §3 and §5.2. If the festival site has changed since, the numbers will differ; in that case update the spec §5.2 table in the same commit (spec §5.2, last paragraph) rather than hand-editing the fixtures.
 
@@ -5544,12 +5587,12 @@ true
   sessions: 27, events: 27, sessionCount: 27, speakerCount: 0,
   days: [ 'pt' ], types: [ 184, 278 ], locations: [ 280, 279, 233, 281 ],
   themes: 0, brands: 0, speakers: 0, signupStatuses: 0,
-  has41151: true,
+  has41151: false,
   starts: 27
 }
 ```
 
-The set sizes are the `n` column of the spec §5.2 table. `locations` comes out `[280, 279, 233, 281]` because the array keeps `order` order: level `I` (W4, 280) precedes level `II`, and within level `II` Polish collation puts "Klub bokserski" before "So Salsa" before "SoSalsa". `has41151` confirms the 09:30–16:00 workshop that the slot tests (spec §10) span against is present. (`starts: 27` is the number of distinct start times, one per session on this data; the slot count of 13 in the table comes from clustering them with `tolerance = 15`, which the domain slot tests verify.)
+The set sizes are the `n` column of the spec §5.2 table. `locations` comes out `[280, 279, 233, 281]` because the array keeps `order` order: level `I` (W4, 280) precedes level `II`, and within level `II` Polish collation puts "Klub bokserski" before "So Salsa" before "SoSalsa". `has41151: false` confirms that event 41151, the 09:30–16:00 `Warsztaty` masterclass, is deliberately absent from the lecture fixture, whose set is `Prelekcja` and `Prelekcja z sesją` only; the slot tests (spec §10) in Task 9 build that workshop synthetically and span it against these lecture rows. (`starts: 27` is the number of distinct start times, one per session on this data; the slot count of 13 in the table comes from clustering them with `tolerance = 15`, which the domain slot tests verify.)
 
 - [ ] **Step 5: Check that a re-run produces a minimal diff**
 
@@ -5573,7 +5616,7 @@ npm run typecheck
 npm test
 ```
 
-Expected: both clean. (`resolveJsonModule` must be on in `tsconfig.json` for `src/data/index.ts` to import the snapshot in later tasks; the typecheck passes here regardless because nothing imports it yet.)
+Expected: both clean. (`resolveJsonModule` must be on in `tsconfig.json` for `src/data/index.tsx` to import the snapshot in later tasks; the typecheck passes here regardless because nothing imports it yet.)
 
 - [ ] **Step 7: Commit the generated files**
 
@@ -6056,7 +6099,7 @@ export function slotRegularity(slots: Slot[], sessions: TimedSession[], toleranc
 
 Run: `npx vitest run src/domain/slots.test.ts`
 
-Expected: all tests pass (8 `detectSlots`, 8 index/span, 5 `spanAllowed`, 7 `slotRegularity`, 9 calibration, 4 fri-lectures). If a calibration row fails, the fixture on disk differs from the 2026-09-03 snapshot the spec table was computed from; do not change the table, regenerate the fixture with `npm run fetch -- --fixtures` only if the fetch-script task has not committed it yet.
+Expected: all tests pass (8 `detectSlots`, 7 index/span, 5 `spanAllowed`, 7 `slotRegularity`, 9 calibration, 4 fri-lectures). If a calibration row fails, the fixture on disk differs from the 2026-09-03 snapshot the spec table was computed from; do not change the table, regenerate the fixture with `npm run fetch -- --fixtures` only if the fetch-script task has not committed it yet.
 
 Run: `npm run typecheck`
 
@@ -9175,7 +9218,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
   - `parseHash(hash: string): HashState`, `writeHash(h: HashState): void` from Task 18.
   - `zustand` (`create`) and `zustand/middleware` (`persist`, `createJSONStorage`, `type StateStorage`).
 - Produces (exactly the contract's `src/state/store.ts` block): `View`, `ColumnAxis`, `TimeMode`, `Settings`, `Toast`, `SheetKind`, `SharedPlan`, `State`, `Actions`, `Store`, `STORAGE_KEY = "swiatlosila-2026:v1"`, `MOBILE_BREAKPOINT = 700`, `defaultSettings(viewportWidth)`, `defaultView(viewportWidth)`, `useStore` (created with `create<Store>()(persist(...))`, so its inferred type also carries `useStore.persist`), `planSetOf(state)`, `usePlanSet()`.
-  - Action semantics later tasks rely on: `setDay`/`setView` write the hash (`plan` kept verbatim from the current hash only while `sharedPlan` is set); `setView` to anything but `"plan"` clears `previewPlan`; `toggleFavourite` pushes no toast; `resetSettings` keeps `theme` and `planLayout`; `loadSharedPlan` unions into `favourites`, `previewSharedPlan` sets `previewPlan` and `view: "plan"`, `dismissSharedPlan` only clears, and all three clear `sharedPlan` and drop `plan` from the hash; `setSharedPlan` only sets the field (boot writes the hash itself); `savePreview` unions and clears `previewPlan`; `closePreview` clears it; `selectSession(id)` also sets `openSheet` to `"detail"` (or closes a detail sheet when `id` is null); `pushToast` auto-dismisses after 3000 ms, 6000 ms with an action; `storageFailed` flips to `true` the first time the storage adapter catches a throw (no toast from the store; `main.tsx` pushes "Nie mogę zapisać ulubionych w tej przeglądarce").
+  - Action semantics later tasks rely on: `setDay`/`setView` write the hash (`plan` kept verbatim from the current hash only while `sharedPlan` is set); `setView` to anything but `"plan"` clears `previewPlan`; `toggleFavourite` pushes no toast; `resetSettings` keeps `theme` and `planLayout`; `loadSharedPlan` unions into `favourites`, `previewSharedPlan` sets `previewPlan` and `view: "plan"`, `dismissSharedPlan` only clears, and all three clear `sharedPlan` and drop `plan` from the hash; `setSharedPlan` only sets the field (boot writes the hash itself); `savePreview` unions and clears `previewPlan`; `closePreview` clears it; `selectSession(id)` also sets `openSheet` to `"detail"` (or closes a detail sheet when `id` is null); `pushToast` only appends `{ id, text, action? }` with increasing ids and starts no timer (the `Toasts` component in Task 23 owns the display timer: 3000 ms, 6000 ms with an action); `dismissToast(id)` removes one toast; `storageFailed` flips to `true` the first time the storage adapter catches a throw (no toast from the store; `main.tsx` pushes "Nie mogę zapisać ulubionych w tej przeglądarce").
   - The initial `day` is `""` until `main.tsx` applies `resolveBoot` (Task 20).
 
 - [ ] **Step 1: Write the failing store tests**
@@ -9460,17 +9503,16 @@ describe("share flow", () => {
 });
 
 describe("toasts", () => {
-  it("auto-dismisses a plain toast after 3000 ms", () => {
-    vi.useFakeTimers();
+  it("pushToast appends toasts in order with increasing ids and no action by default", () => {
     useStore.getState().pushToast("Skopiowano link do planu");
-    expect(useStore.getState().toasts.map((t) => t.text)).toEqual(["Skopiowano link do planu"]);
-    vi.advanceTimersByTime(2999);
-    expect(useStore.getState().toasts).toHaveLength(1);
-    vi.advanceTimersByTime(1);
-    expect(useStore.getState().toasts).toHaveLength(0);
+    useStore.getState().pushToast("Usunięto z planu: Sesja");
+    const [a, b] = useStore.getState().toasts;
+    expect(useStore.getState().toasts.map((t) => t.text)).toEqual(["Skopiowano link do planu", "Usunięto z planu: Sesja"]);
+    expect(a !== undefined && b !== undefined && b.id > a.id).toBe(true);
+    expect(a).toEqual({ id: a?.id, text: "Skopiowano link do planu" });
   });
 
-  it("keeps a toast with an action for 6000 ms and exposes the action", () => {
+  it("keeps a toast with an action until dismissToast; the store starts no timer", () => {
     vi.useFakeTimers();
     const run = vi.fn();
     useStore.getState().pushToast("Usunięto z planu: Sesja", { label: "Cofnij", run });
@@ -9478,19 +9520,19 @@ describe("toasts", () => {
     expect(toast?.action?.label).toBe("Cofnij");
     toast?.action?.run();
     expect(run).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(5999);
+    vi.advanceTimersByTime(10000);
     expect(useStore.getState().toasts).toHaveLength(1);
-    vi.advanceTimersByTime(1);
+    useStore.getState().dismissToast(toast?.id ?? -1);
     expect(useStore.getState().toasts).toHaveLength(0);
   });
 
-  it("dismissToast removes only the given toast and ids increase", () => {
-    vi.useFakeTimers();
+  it("dismissToast removes only the given toast and ignores unknown ids", () => {
     useStore.getState().pushToast("a");
     useStore.getState().pushToast("b");
-    const [a, b] = useStore.getState().toasts;
-    expect(a !== undefined && b !== undefined && b.id > a.id).toBe(true);
+    const [a] = useStore.getState().toasts;
     useStore.getState().dismissToast(a?.id ?? -1);
+    expect(useStore.getState().toasts.map((t) => t.text)).toEqual(["b"]);
+    useStore.getState().dismissToast(-1);
     expect(useStore.getState().toasts.map((t) => t.text)).toEqual(["b"]);
   });
 });
@@ -9657,9 +9699,6 @@ export type Store = State & Actions;
 
 export const STORAGE_KEY = "swiatlosila-2026:v1";
 export const MOBILE_BREAKPOINT = 700;
-
-const TOAST_MS = 3000;
-const TOAST_ACTION_MS = 6000;
 
 export function defaultSettings(viewportWidth: number): Settings {
   const mobile = viewportWidth < MOBILE_BREAKPOINT;
@@ -9847,11 +9886,11 @@ export const useStore = create<Store>()(
       },
       closePreview: () => set({ previewPlan: null }),
 
+      // The Toasts component owns the display timer; the store only queues and removes.
       pushToast: (text, action) => {
         const id = ++toastSeq;
         const toast: Toast = action ? { id, text, action } : { id, text };
         set((s) => ({ toasts: [...s.toasts, toast] }));
-        setTimeout(() => get().dismissToast(id), action ? TOAST_ACTION_MS : TOAST_MS);
       },
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
@@ -9936,7 +9975,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
   - `decodePlan(str: string, sessionIds: ReadonlySet<string>): { ids: string[]; unknown: number }` from `src/domain/share.ts`.
   - `DataIndex` (`dayById`, `sessionsByDay`, `sessionIds`) from `src/domain/lookup.ts`; `ScheduleData` from `src/data/types.ts`.
   - Tests: `buildIndex`, `encodePlan`, `makeData`, `makeSession` from the contract.
-- Produces: `interface BootResult { day: string; view: View; sharedPlan: SharedPlan | null }` and `resolveBoot(args: { hash; persistedView; viewportWidth; data; index; now }): BootResult`. `main.tsx` calls it once, applies `setDay`/`setView` equivalents through `useStore.setState({ day, view, sharedPlan })`, then `writeHash({ d: day, v: view, plan: parseHash(location.hash).plan })` so an existing `plan` parameter survives verbatim until the banner is answered. `resolveBoot` is pure: it never writes the hash or the store.
+- Produces: `interface BootResult { day: string; view: View; sharedPlan: SharedPlan | null; favourites: string[]; droppedFavourites: number }` and `resolveBoot(args: { hash; persistedView; persistedFavourites; viewportWidth; data; index; now }): BootResult`. `favourites` is `persistedFavourites` filtered to ids present in `index.sessionIds`, in stored order; `droppedFavourites` is how many were removed (spec §6). `main.tsx` calls it once after rehydration with `persistedFavourites: useStore.getState().favourites`, applies the result through `useStore.setState({ day, view, sharedPlan, favourites })`, pushes the toast "Pominięto N zapisanych wydarzeń, których nie ma w tej wersji harmonogramu" when `droppedFavourites > 0`, then `writeHash({ d: day, v: view, plan: parseHash(location.hash).plan })` so an existing `plan` parameter survives verbatim until the banner is answered. `resolveBoot` is pure: it never writes the hash or the store.
 
 - [ ] **Step 1: Write the failing boot test**
 
@@ -9981,7 +10020,7 @@ const friday = new Date(2026, 8, 4, 10, 0);
 type BootArgs = Parameters<typeof resolveBoot>[0];
 
 function boot(over: Partial<BootArgs> = {}) {
-  return resolveBoot({ hash: "", persistedView: null, viewportWidth: 1200, data, index, now: saturday, ...over });
+  return resolveBoot({ hash: "", persistedView: null, persistedFavourites: [], viewportWidth: 1200, data, index, now: saturday, ...over });
 }
 
 describe("resolveBoot view precedence", () => {
@@ -9990,6 +10029,8 @@ describe("resolveBoot view precedence", () => {
       day: "pt",
       view: "list",
       sharedPlan: null,
+      favourites: [],
+      droppedFavourites: 0,
     });
   });
 
@@ -10038,6 +10079,21 @@ describe("resolveBoot shared plan", () => {
     expect(boot({ hash: "#d=pt&v=grid&plan=" }).sharedPlan).toBeNull();
   });
 });
+
+describe("resolveBoot favourites", () => {
+  it("drops persisted ids the data does not know and counts them", () => {
+    const result = boot({ persistedFavourites: ["200:pt", "999:pt", "301:sob", "100:nd"] });
+    expect(result.favourites).toEqual(["200:pt", "301:sob"]);
+    expect(result.droppedFavourites).toBe(2);
+  });
+
+  it("keeps known ids in their stored order and reports zero dropped", () => {
+    const result = boot({ persistedFavourites: ["301:sob", "100:czw", "200:pt"] });
+    expect(result.favourites).toEqual(["301:sob", "100:czw", "200:pt"]);
+    expect(result.droppedFavourites).toBe(0);
+    expect(boot()).toMatchObject({ favourites: [], droppedFavourites: 0 });
+  });
+});
 ```
 
 - [ ] **Step 2: Run the boot test to verify it fails**
@@ -10059,6 +10115,8 @@ export interface BootResult {
   day: string;
   view: View;
   sharedPlan: SharedPlan | null;
+  favourites: string[];
+  droppedFavourites: number;
 }
 
 const VIEWS: readonly View[] = ["grid", "list", "plan"];
@@ -10070,17 +10128,20 @@ function isView(value: string | null | undefined): value is View {
 /**
  * Spec §6 boot precedence. `view`: valid hash `v`, else the persisted view, else the viewport default.
  * `day`: valid hash `d`, else `defaultDay`. A `plan` parameter is decoded into `sharedPlan`.
+ * `favourites` is `persistedFavourites` without the ids this snapshot does not know, in stored order;
+ * `droppedFavourites` counts the removed ones so the caller can report them.
  * Pure: writes neither the hash nor the store.
  */
 export function resolveBoot(args: {
   hash: string;
   persistedView: View | null;
+  persistedFavourites: string[];
   viewportWidth: number;
   data: ScheduleData;
   index: DataIndex;
   now: Date;
 }): BootResult {
-  const { hash, persistedView, viewportWidth, data, index, now } = args;
+  const { hash, persistedView, persistedFavourites, viewportWidth, data, index, now } = args;
   const h = parseHash(hash);
 
   const view: View = isView(h.v) ? h.v : isView(persistedView) ? persistedView : defaultView(viewportWidth);
@@ -10091,14 +10152,17 @@ export function resolveBoot(args: {
 
   const sharedPlan = h.plan !== undefined ? decodePlan(h.plan, index.sessionIds) : null;
 
-  return { day, view, sharedPlan };
+  const favourites = persistedFavourites.filter((id) => index.sessionIds.has(id));
+  const droppedFavourites = persistedFavourites.length - favourites.length;
+
+  return { day, view, sharedPlan, favourites, droppedFavourites };
 }
 ```
 
 - [ ] **Step 4: Run the boot tests to verify they pass**
 
 Run: `npx vitest run src/state/boot.test.ts`
-Expected: 10 tests pass.
+Expected: 12 tests pass.
 
 Run: `npm run typecheck`
 Expected: no errors.
@@ -10111,7 +10175,8 @@ git commit -m "feat(state): resolve day, view and shared plan at boot
 
 Hash values win when they name a known day or view, storage supplies
 the view next, the viewport last; the plan parameter is decoded with
-unknown ids counted.
+unknown ids counted; persisted favourites are pruned to known session
+ids and the dropped count is returned for the boot toast.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
@@ -10142,6 +10207,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 `src/state/derive.test.ts`:
 
 ```ts
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { Location, Session, Term } from "../data/types";
 import { EMPTY_FILTERS, buildSearchIndex, type Filters } from "../domain/filters";
@@ -10820,13 +10886,13 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 - Create: `src/components/ui/CopySheet.tsx`, `src/components/ui/CopySheet.module.css`
 - Create: `src/components/ui/Star.tsx`, `src/components/ui/Star.module.css`
 - Modify: `src/styles/tokens.css` (replace with the complete spec §8 token set below; every component in this task and Task 23 uses these names)
-- Modify: `src/styles/base.css` (append the reset, focus ring and helper rules below)
+- Modify: `src/styles/base.css` (replace with the complete file below; it supersedes the Task 1 version)
 - Test: `src/test/ui.test.tsx`
 
 **Interfaces:**
 - Consumes: `useStore` (`copyText`, `openSheet`, `setSheet`, `setCopyText`) from `src/state/store.ts`; `lucide-react` icons `X`, `Star`.
 - Produces (contract props, all named exports):
-  - `Sheet({ open: boolean; side: "right" | "bottom"; title: string; onClose(): void; children: ReactNode; labelledBy?: string })` — `role="dialog"`, `aria-modal="true"`, focus trap, Escape / backdrop / close-button close, focus restore; the backdrop carries `data-sheet-backdrop`.
+  - `Sheet({ open: boolean; side: "left" | "right" | "bottom"; title: string; onClose(): void; children: ReactNode; labelledBy?: string })` — `role="dialog"`, `aria-modal="true"`, focus trap, Escape / backdrop / close-button close, focus restore; the backdrop carries `data-sheet-backdrop` and the root carries `data-side`. `left` is a 320 px panel anchored to the left edge (the medium tier's filters sheet), `right` a 420 px panel on the right edge, `bottom` a 90 % tall panel rising from the bottom edge; focus and close behaviour are identical for all three.
   - `Popover({ open: boolean; anchorRef: RefObject<HTMLElement | null>; onClose(): void; children: ReactNode; title: string })` — positioned under the anchor, closes on Escape, outside mousedown and focus leaving.
   - `Chip({ children: ReactNode; onRemove?(): void; tone?: "default" | "accent" })` — remove button labelled `Usuń filtr: <text>`.
   - `Avatar({ name: string; src: string | null; size?: number; hue?: number })` — `role="img"` wrapper, `img` with `onError` → initials fallback.
@@ -10869,7 +10935,7 @@ function pressTab(shift = false): void {
   fireEvent.keyDown(active() ?? document.body, { key: "Tab", shiftKey: shift });
 }
 
-function SheetHarness({ side = "right" }: { side?: "right" | "bottom" }) {
+function SheetHarness({ side = "right" }: { side?: "left" | "right" | "bottom" }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -10943,6 +11009,19 @@ describe("Sheet", () => {
     render(<SheetHarness side="bottom" />);
     await user.click(screen.getByRole("button", { name: "Otwórz" }));
     expect(document.querySelector('[data-side="bottom"]')).not.toBeNull();
+  });
+
+  it("renders a left-side sheet with the left class", async () => {
+    const user = userEvent.setup();
+    render(<SheetHarness side="left" />);
+    await user.click(screen.getByRole("button", { name: "Otwórz" }));
+    const root = document.querySelector('[data-side="left"]');
+    expect(root).not.toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Szczegóły" });
+    expect((root as Element).contains(dialog)).toBe(true);
+    expect(dialog.contains(active())).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
@@ -11235,49 +11314,70 @@ describe("useMediaQuery", () => {
 }
 ```
 
-- [ ] 4. Append to `src/styles/base.css`:
+- [ ] 4. Replace `src/styles/base.css` with this complete file (it supersedes the Task 1 version; sizes and colours come from `tokens.css`):
 
 ```css
-/* ---- resets and helpers shared by every component ---- */
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.4;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
-
+/* Global reset and base styles. Component styles live in CSS Modules next to each component. */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  padding: 0;
+* {
   margin: 0;
-  cursor: pointer;
-  touch-action: manipulation;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
 input,
-textarea,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 a {
@@ -11287,6 +11387,10 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .visually-hidden {
@@ -11451,7 +11555,7 @@ import { useDialogFocus } from "./focus";
 
 export interface SheetProps {
   open: boolean;
-  side: "right" | "bottom";
+  side: "left" | "right" | "bottom";
   title: string;
   onClose(): void;
   children: ReactNode;
@@ -11527,6 +11631,16 @@ export function Sheet({ open, side, title, onClose, children, labelledBy }: Shee
   outline: none;
 }
 
+.root[data-side="left"] {
+  justify-content: flex-start;
+}
+
+.root[data-side="left"] .panel {
+  width: 320px;
+  height: 100%;
+  border-right: 1px solid var(--border);
+}
+
 .root[data-side="right"] {
   justify-content: flex-end;
 }
@@ -11598,6 +11712,10 @@ export function Sheet({ open, side, title, onClose, children, labelledBy }: Shee
     animation: sheetFade 160ms ease-out;
   }
 
+  .root[data-side="left"] .panel {
+    animation: sheetSlideLeft 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
   .root[data-side="right"] .panel {
     animation: sheetSlideRight 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
@@ -11609,6 +11727,13 @@ export function Sheet({ open, side, title, onClose, children, labelledBy }: Shee
 
 @keyframes sheetFade {
   from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetSlideLeft {
+  from {
+    transform: translateX(-24px);
     opacity: 0;
   }
 }
@@ -12543,7 +12668,7 @@ export function Star({ pressed, onToggle, size = 18 }: StarProps) {
 }
 ```
 
-- [ ] 17. Run `npx vitest run src/test/ui.test.tsx` and confirm every test passes (5 Sheet, 2 Popover, 1 Star, 3 Avatar, 2 Chip, 1 Segmented, 1 Slider, 1 Toggle, 1 EmptyState, 2 CopySheet, 1 useMediaQuery).
+- [ ] 17. Run `npx vitest run src/test/ui.test.tsx` and confirm every test passes: 21 tests (6 Sheet, 2 Popover, 1 Star, 3 Avatar, 2 Chip, 1 Segmented, 1 Slider, 1 Toggle, 1 EmptyState, 2 CopySheet, 1 useMediaQuery).
 
 - [ ] 18. Run `npm run typecheck` and confirm it reports no errors.
 
@@ -12578,24 +12703,35 @@ EOF
 - Create: `src/components/shell/Toasts.tsx`, `src/components/shell/Toasts.module.css`
 - Create: `src/App.tsx`, `src/App.module.css`
 - Create: `src/main.tsx` (replace the setup task's placeholder if one exists)
+- Create: `src/state/clock.ts` (the app-wide `Clock`, imported by both `src/main.tsx` and `src/App.tsx`)
 - Create (only if an earlier task has not already created it): `src/data/index.tsx`
 - Create (only if an earlier task has not already created it): `src/styles/print.css`
+- Create (placeholder, replaced in Task 26): `src/components/grid/ScheduleGrid.tsx`
+- Create (placeholder, replaced in Task 29): `src/components/list/ScheduleList.tsx`
+- Create (placeholder, replaced in Task 33): `src/components/plan/PlanView.tsx`
+- Create (placeholder, replaced in Task 33): `src/components/plan/PrintPlan.tsx`
+- Create (placeholder, replaced in Task 32): `src/components/detail/DetailSheet.tsx`
+- Create (placeholder, replaced in Task 30): `src/components/filters/FiltersPanel.tsx`
+- Create (placeholder, replaced in Task 31): `src/components/settings/SettingsPanel.tsx`
+- Delete: `src/test/App.test.tsx` (Task 1's smoke test looked for a heading named "ŚwiatłoSiła 2026"; the new top bar renders the wordmark as a span, and the `App` case in `src/test/shell.test.tsx` takes over that coverage)
 - Test: `src/test/shell.test.tsx`
 
 **Interfaces:**
 - Consumes:
   - `useStore`, `usePlanSet`, `defaultSettings`, `STORAGE_KEY`, types `View`, `Settings`, `SharedPlan` from `src/state/store.ts`; actions `setDay`, `setView`, `setFilters`, `clearFilters`, `toggleFacetValue`, `setSettings`, `setSheet`, `loadSharedPlan`, `previewSharedPlan`, `dismissSharedPlan`, `pushToast`, `dismissToast`, `setNow`.
   - `daySets`, `buildColumns`, `resolveTimeMode`, `listGroups` from `src/state/derive.ts`.
-  - `resolveBoot` from `src/state/boot.ts`; `parseHash`, `writeHash` from `src/state/hash.ts`; `applyTheme`, `watchSystemTheme` from `src/state/theme.ts`.
-  - `createClock` from `src/domain/now.ts`; `isToday`, `isTomorrow`, `nowFor`, `liveState`; `formatTime` from `src/domain/time.ts`; `activeFilterCount`, `signupLabel`, `EMPTY_FILTERS` from `src/domain/filters.ts`.
+  - `resolveBoot` from `src/state/boot.ts` (takes `persistedFavourites: string[]` and returns `favourites` and `droppedFavourites` next to `day`, `view`, `sharedPlan`); `parseHash`, `writeHash` from `src/state/hash.ts`; `applyTheme`, `watchSystemTheme` from `src/state/theme.ts`.
+  - `createClock` from `src/domain/now.ts` (called exactly once, in `src/state/clock.ts`); `isToday`, `isTomorrow`, `nowFor`, `liveState`; `formatTime` from `src/domain/time.ts`; `activeFilterCount`, `signupLabel`, `EMPTY_FILTERS` from `src/domain/filters.ts`.
   - `useData()` from `src/data/index.tsx` in every component that reads the schedule (`DayTabs`, `LiveChip`, `FilterChips`, `App`); `DataProvider` and `buildAppData` from the same module in `src/test/shell.test.tsx` (fixtures are injected through the provider, never by mocking the module). Only the non-component entry `src/main.tsx` imports the module-level `data`, `index`, `search` and hands them to `<DataProvider>`.
-  - Components from other tasks, all as named exports: `ScheduleGrid` (`src/components/grid/ScheduleGrid`), `ScheduleList` (`src/components/list/ScheduleList`), `PlanView` and `PrintPlan` (`src/components/plan/...`), `DetailSheet` (`src/components/detail/DetailSheet`), `FiltersPanel` (`src/components/filters/FiltersPanel`), `SettingsPanel` (`src/components/settings/SettingsPanel`).
+  - Components that later tasks implement, imported as named exports: `ScheduleGrid` (`src/components/grid/ScheduleGrid`, Task 26), `ScheduleList` (`src/components/list/ScheduleList`, Task 29), `PlanView` (`src/components/plan/PlanView`, Task 33) and `PrintPlan` (`src/components/plan/PrintPlan`, Task 33), `DetailSheet` (`src/components/detail/DetailSheet`, Task 32), `FiltersPanel` (`src/components/filters/FiltersPanel`, Task 30), `SettingsPanel` (`src/components/settings/SettingsPanel`, Task 31). Step 12b creates each of them as a placeholder with the contract props so that typecheck, tests and the build stay green; the later task overwrites the file in place and keeps the same named export and props.
   - Task 22: `Sheet`, `Chip`, `Burst`, `cx`, `CopySheet`, `useTier`, `prefersReducedMotion`.
 - Produces:
   - `TopBar()`, `DayTabs()`, `ViewSwitcher()`, `BottomBar()`, `LiveChip()`, `ShareBanner()`, `FilterChips()`, `Toasts()` — no props, named exports.
   - `VIEW_OPTIONS: { value: View; label: string }[]` (internal, exported from `ViewSwitcher.tsx` for `BottomBar`).
   - `App` (default export) and the entry `src/main.tsx`.
   - DOM hooks the grid and list must provide for the live chip: the grid's now line element carries `data-now-line`; a list group containing a `live` or `soon` session carries `data-live-group`.
+  - `src/state/clock.ts`: `clock: Clock`, created once with `createClock(window.location.search)`; `main.tsx` reads the boot `now` from it and `App` advances the store's `now` from it every 30 s.
+  - Placeholder named exports with the contract props (step 12b), each returning `null` except `PrintPlan`, which renders `<section className="print-plan" aria-hidden="true" />`; `ScheduleList.tsx` also exports `LIVE_GROUP_ID = "list-live"`.
 
 Steps:
 
@@ -13155,7 +13291,7 @@ export function ViewSwitcher() {
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 11px;
+  font-size: var(--text-min);
   font-weight: 700;
 }
 ```
@@ -13240,7 +13376,7 @@ export function BottomBar() {
   justify-content: center;
   gap: 2px;
   min-height: 44px;
-  font-size: 11px;
+  font-size: var(--text-min);
   color: var(--text-muted);
 }
 
@@ -13261,7 +13397,7 @@ export function BottomBar() {
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 11px;
+  font-size: var(--text-min);
   font-weight: 700;
 }
 ```
@@ -14022,7 +14158,7 @@ export function TopBar() {
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 11px;
+  font-size: var(--text-min);
   font-weight: 700;
 }
 
@@ -14068,14 +14204,96 @@ export function TopBar() {
 }
 ```
 
+- [ ] 12a. Create `src/state/clock.ts` (the one place `createClock` is called; `main.tsx` and `App` share it):
+
+```ts
+import { createClock, type Clock } from "../domain/now";
+
+/** App-wide clock: honours a `?now=` override through createClock and keeps ticking from that base. */
+export const clock: Clock = createClock(window.location.search);
+```
+
+- [ ] 12b. Create seven placeholder modules so that typecheck, tests and the build stay green until Tasks 26–33 replace each file in place. Every placeholder is a named export that takes the contract props as a single `_props` parameter and returns `null`, except `PrintPlan`, which renders the `.print-plan` section that `src/test/shell.test.tsx` and `print.css` look for. The underscore prefix is what TypeScript exempts from `noUnusedParameters`, so the files compile whether or not that flag is on (Task 1's `tsconfig.json` sets only `strict`).
+
+`src/components/grid/ScheduleGrid.tsx`
+```tsx
+import type { Column, DaySets, ResolvedTime } from "../../state/derive";
+
+/** Placeholder, replaced in Task 26. */
+export function ScheduleGrid(_props: { sets: DaySets; columns: Column[]; resolved: ResolvedTime; dayId: string }) {
+  return null;
+}
+```
+
+`src/components/list/ScheduleList.tsx`
+```tsx
+import type { ListGroup } from "../../state/derive";
+
+/** The id the LiveChip scrolls to in list view; Task 29 places it on the first live or soon group. */
+export const LIVE_GROUP_ID = "list-live";
+
+/** Placeholder, replaced in Task 29. */
+export function ScheduleList(_props: { groups: ListGroup[] }) {
+  return null;
+}
+```
+
+`src/components/plan/PlanView.tsx`
+```tsx
+/** Placeholder, replaced in Task 33. */
+export function PlanView() {
+  return null;
+}
+```
+
+`src/components/plan/PrintPlan.tsx`
+```tsx
+/** Placeholder, replaced in Task 33. Keeps the `.print-plan` section that print.css and the App test rely on. */
+export function PrintPlan() {
+  return <section className="print-plan" aria-hidden="true" />;
+}
+```
+
+`src/components/detail/DetailSheet.tsx`
+```tsx
+/** Placeholder, replaced in Task 32. */
+export function DetailSheet() {
+  return null;
+}
+```
+
+`src/components/filters/FiltersPanel.tsx`
+```tsx
+/** Placeholder, replaced in Task 30. */
+export function FiltersPanel(_props: { variant: "sidebar" | "sheet" }) {
+  return null;
+}
+```
+
+`src/components/settings/SettingsPanel.tsx`
+```tsx
+import type { RefObject } from "react";
+
+/** Placeholder, replaced in Task 31. */
+export function SettingsPanel(_props: {
+  variant: "popover" | "sheet";
+  anchorRef?: RefObject<HTMLElement | null>;
+  open: boolean;
+  onClose(): void;
+}) {
+  return null;
+}
+```
+
 - [ ] 13. Create `src/App.tsx` and `src/App.module.css`:
 
 `src/App.tsx`
 ```tsx
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import styles from "./App.module.css";
 import { useData } from "./data/index";
 import { usePlanSet, useStore } from "./state/store";
+import { clock } from "./state/clock";
 import { buildColumns, daySets, listGroups, resolveTimeMode } from "./state/derive";
 import { useTier } from "./state/useMediaQuery";
 import { TopBar } from "./components/shell/TopBar";
@@ -14092,6 +14310,9 @@ import { DetailSheet } from "./components/detail/DetailSheet";
 import { FiltersPanel } from "./components/filters/FiltersPanel";
 import { Sheet } from "./components/ui/Sheet";
 import { CopySheet } from "./components/ui/CopySheet";
+
+/** The store's `now` advances this often; the shared clock honours a ?now= override. */
+const CLOCK_INTERVAL_MS = 30_000;
 
 /** Spec §8: fixed full-page feTurbulence grain at 4 % opacity, skipped on mobile by the caller. */
 function Grain() {
@@ -14113,8 +14334,15 @@ export default function App() {
   const settings = useStore((s) => s.settings);
   const openSheet = useStore((s) => s.openSheet);
   const setSheet = useStore((s) => s.setSheet);
+  const setNow = useStore((s) => s.setNow);
   const planSet = usePlanSet();
   const tier = useTier();
+
+  // Clock: main.tsx sets the boot `now`; from then on this effect advances it every 30 s.
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(clock.now()), CLOCK_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [setNow]);
 
   const sets = useMemo(
     () => daySets({ data, index, search, dayId: day, filters, settings, planSet, planView: false }),
@@ -14135,9 +14363,9 @@ export default function App() {
       <FilterChips />
       <div className={styles.body}>
         {tier === "wide" && (
-          <aside className={styles.sidebar} aria-label="Filtry">
+          <div className={styles.sidebar}>
             <FiltersPanel variant="sidebar" />
-          </aside>
+          </div>
         )}
         <main className={styles.main} id="main">
           <div key={`${view}:${day}:${resolved.mode}`} className={styles.fade}>
@@ -14148,7 +14376,7 @@ export default function App() {
         </main>
       </div>
       {tier !== "wide" && (
-        <Sheet open={openSheet === "filters"} side={tier === "mobile" ? "bottom" : "right"} title="Filtry" onClose={closeSheet}>
+        <Sheet open={openSheet === "filters"} side={tier === "mobile" ? "bottom" : "left"} title="Filtry" onClose={closeSheet}>
           <FiltersPanel variant="sheet" />
         </Sheet>
       )}
@@ -14248,11 +14476,10 @@ import App from "./App";
 import { DataProvider, data, index, search } from "./data/index";
 import { STORAGE_KEY, useStore, type SharedPlan, type View } from "./state/store";
 import { resolveBoot } from "./state/boot";
+import { clock } from "./state/clock";
 import { parseHash, writeHash, type HashState } from "./state/hash";
 import { applyTheme, watchSystemTheme } from "./state/theme";
-import { createClock } from "./domain/now";
 
-const CLOCK_INTERVAL_MS = 30_000;
 const STORAGE_TOAST = "Nie mogę zapisać ulubionych w tej przeglądarce";
 
 function isView(v: string | undefined): v is View {
@@ -14275,31 +14502,30 @@ function readPersistedView(): View | null {
 }
 
 function boot(): void {
-  const clock = createClock(window.location.search);
   const now = clock.now();
   const planParam = parseHash(window.location.hash).plan;
+  const initial = useStore.getState();
 
+  // resolveBoot keeps only the persisted favourites that exist in this snapshot and counts the rest.
   const resolved = resolveBoot({
     hash: window.location.hash,
     persistedView: readPersistedView(),
+    persistedFavourites: initial.favourites,
     viewportWidth: window.innerWidth,
     data,
     index,
     now,
   });
 
-  const initial = useStore.getState();
-  const knownFavourites = initial.favourites.filter((id) => index.sessionIds.has(id));
-  const dropped = initial.favourites.length - knownFavourites.length;
   useStore.setState({
     day: resolved.day,
     view: resolved.view,
     sharedPlan: resolved.sharedPlan,
+    favourites: resolved.favourites,
     now,
-    favourites: knownFavourites,
   });
-  if (dropped > 0) {
-    initial.pushToast(`Pominięto ${dropped} zapisanych wydarzeń, których nie ma w tej wersji harmonogramu`);
+  if (resolved.droppedFavourites > 0) {
+    initial.pushToast(`Pominięto ${resolved.droppedFavourites} zapisanych wydarzeń, których nie ma w tej wersji harmonogramu`);
   }
   if (initial.storageFailed) initial.pushToast(STORAGE_TOAST);
   useStore.subscribe((state, previous) => {
@@ -14332,8 +14558,7 @@ function boot(): void {
     if (state.settings.theme !== previous.settings.theme) applyTheme(state.settings.theme);
   });
 
-  // Clock: the store's `now` advances every 30 s (honours a ?now= override through createClock).
-  window.setInterval(() => useStore.getState().setNow(clock.now()), CLOCK_INTERVAL_MS);
+  // Clock: `now` was set once above from the shared clock; App's effect advances it every 30 s.
 
   const root = document.getElementById("root");
   if (!root) throw new Error("Brak elementu #root w index.html");
@@ -14349,13 +14574,19 @@ function boot(): void {
 boot();
 ```
 
-- [ ] 15. Run `npx vitest run src/test/shell.test.tsx` and confirm every test passes (2 DayTabs, 2 ViewSwitcher, 1 BottomBar, 4 LiveChip, 4 ShareBanner, 2 FilterChips, 1 Toasts, 1 App). If only the `App` test fails with an import error, the cause is an export-name mismatch with another task's component (`ScheduleGrid`, `ScheduleList`, `PlanView`, `PrintPlan`, `DetailSheet`, `FiltersPanel`, `SettingsPanel` are imported here as named exports); fix the import form in `App.tsx` / `TopBar.tsx` to match that file, not the other way round.
+- [ ] 14a. Delete Task 1's smoke test, whose heading assertion no longer matches the shell (the `App` case in `src/test/shell.test.tsx` covers the mark, tabs, main area and print section instead):
+
+```bash
+git rm src/test/App.test.tsx
+```
+
+- [ ] 15. Run `npx vitest run src/test/shell.test.tsx` and confirm every test passes: 17 tests (2 DayTabs, 2 ViewSwitcher, 1 BottomBar, 4 LiveChip, 4 ShareBanner, 2 FilterChips, 1 Toasts, 1 App). The `App` case passes against the step 12b placeholders: the placeholder `PrintPlan` renders the `.print-plan` section it looks for, and every other placeholder renders nothing. If the `App` test fails with an import error, a placeholder from step 12b is missing or its named export does not match the import in `App.tsx` / `TopBar.tsx`; fix the placeholder.
 
 - [ ] 16. Run the whole suite and the type check: `npm test` and `npm run typecheck`; both must be clean.
 
-- [ ] 17. Run `npm run build` and open `dist/index.html` in a browser: the top bar shows the burst, "ŚwiatłoSiła 2026", the day tabs, Siatka/Lista/Mój plan, the search box, "Widok", the theme toggle; narrowing the window under 700 px moves the day tabs to a second row and shows the bottom bar with Filtry; `?now=2026-09-04T10:30` shows the "Teraz 10:30 · trwa N" chip on Friday and "Jutro od 09:00" on Saturday.
+- [ ] 17. Run `npm run build` and open `dist/index.html` in a browser: the top bar shows the burst, "ŚwiatłoSiła 2026", the day tabs, Siatka/Lista/Mój plan, the search box, "Widok", the theme toggle; between 700 and 1100 px the Filtry button opens a 320 px sheet anchored to the left edge; narrowing the window under 700 px moves the day tabs to a second row and shows the bottom bar with Filtry, whose sheet rises from the bottom; `?now=2026-09-04T10:30` shows the "Teraz 10:30 · trwa N" chip on Friday and "Jutro od 09:00" on Saturday. The main area stays empty until Tasks 26–33 replace the placeholders.
 
-- [ ] 18. Commit:
+- [ ] 18. Commit (`git add -A` stages the `App.test.tsx` deletion from step 14a together with the new files):
 
 ```bash
 git add -A && git commit -F - <<'EOF'
@@ -14365,8 +14596,11 @@ TopBar with search, Widok and theme cycling; DayTabs with roving tabindex;
 ViewSwitcher and BottomBar with plan and filter badges; LiveChip per spec
 §7.1; ShareBanner with load / preview / dismiss; FilterChips with
 "Wyczyść wszystko"; Toasts (aria-live, one at a time). App wires derive()
-sets into the grid, list and plan views by tier; main.tsx boots data,
-hash, theme, clock and storage toasts.
+sets into the grid, list and plan views by tier and ticks the shared
+clock; main.tsx boots data, hash, theme and storage toasts through the
+new resolveBoot contract. Placeholder grid, list, plan, detail, filters
+and settings modules keep the build green until their tasks land; the
+Task 1 App smoke test is replaced by the shell App case.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2
@@ -14396,7 +14630,7 @@ EOF
   - `densityFor(density: Settings["density"], coarsePointer: boolean): Density`
   - `interface TimelineRange { start: number; end: number }`, `timelineRange(layout: TimedSession[]): TimelineRange`
   - `interface CardGeometry { top: number; height: number; lane: number; lanes: number }`
-  - `timelineGeometry(column: Column, range: TimelineRange, zoom: number, density: Density): { columnWidth: number; columnLanes: number; cards: Map<string, CardGeometry> }` — **contract deviation:** the contract's fourth parameter `minCardHeight: number` is replaced by the whole `Density` (its `minCardHeight` field plays the contract's role) because `columnWidth = max(minColumnWidth, columnLanes × laneMin)` cannot be computed without `minColumnWidth` and `laneMin`. Only Task 26 calls this function.
+  - `timelineGeometry(column: Column, range: TimelineRange, zoom: number, density: Density): { columnWidth: number; columnLanes: number; cards: Map<string, CardGeometry> }` — `columnWidth = max(density.minColumnWidth, columnLanes × density.laneMin)`; cards shorter than `density.minCardHeight` are stretched to it. Only Task 26 calls this function.
   - `cardStyle(g: CardGeometry): { top: string; height: string; left: string; width: string }`
   - `interface SlotPlacement { kind: "card" | "span" | "stub"; sessionId: string; column: number; row: number; span: number }`
   - `slotPlacements(column: Column, columnIndex: number, slots: Slot[], tolerance: number, renderedIds: Set<string>): SlotPlacement[]`
@@ -14923,11 +15157,12 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
   - `src/domain/overlaps.ts`: `conflictCount(s: Session, planSessions: Session[]): number`.
   - `src/domain/plan.ts`: `planSessions(planSet: ReadonlySet<string>, sessions: Session[]): Session[]`.
   - `src/domain/time.ts`: `formatRange(start, end)`, `formatTime(m)`, `isPoint(s)`, `visualEnd(s: TimedSession)`.
-  - `src/state/store.ts`: `useStore` (`settings.colorBy`, `settings.showAvatars`, `now`, `previewPlan`, `toggleFavourite(id)`, `selectSession(id)` — which itself sets `openSheet` to `"detail"`), `usePlanSet()`, `defaultSettings(width)`.
+  - `src/state/store.ts`: `useStore` (`settings.colorBy`, `settings.showAvatars`, `now`, `previewPlan`, `toggleFavourite(id)`, `selectSession(id)` — which itself sets `openSheet` to `"detail"`), `usePlanSet()`, `defaultSettings(width)`; in tests also `STORAGE_KEY` and `useStore.persist.rehydrate()`.
   - `src/components/ui/Star.tsx`: `Star({ pressed, onToggle, size? })`; `src/components/ui/Avatar.tsx`: `Avatar({ name, src, size?, hue? })`; `src/components/ui/cx.ts`: `cx(...)`.
   - `src/test/fixtures/build.ts`: `makeSession`, `makeData`, `makeSpeaker`.
+  - `src/components/shell/ViewSwitcher.tsx` (Task 23): `ViewSwitcher()` — rendered in tests next to a card to check the Mój plan badge.
 - Produces:
-  - `SessionCard({ session: Session; compact?: boolean; showLocation: boolean; style?: CSSProperties; variant: "grid" | "row" | "chip" })` — an `<article data-session-id data-size="xs"|"sm"|"md" data-live=<LiveState> data-in-plan?="true" data-point?="true">` holding exactly two sibling controls: `<button class="card__main …">` (phrasing content only) and, unless a shared plan is previewed, the `Star` inside a positioning `<span class="starSlot">`. The primary button's `aria-label` and `title` are `"title, time, location[, Zapisy|Brak miejsc]"` with empty parts omitted. The colour edge comes from inline `--card-h` / `--card-c`. The conflict badge carries `data-conflicts=<n>`.
+  - `SessionCard({ session: Session; compact?: boolean; showLocation: boolean; style?: CSSProperties; variant: "grid" | "row" | "chip" })` — an `<article data-session-id data-size="xs"|"sm"|"md" data-live=<LiveState> data-in-plan?="true" data-point?="true">` holding exactly two sibling controls: `<button class="card__main …">` (phrasing content only) and, unless a shared plan is previewed, the `Star` inside a positioning `<span class="starSlot">`. The primary button's `aria-label` and `title` are `"title, time, location[, Zapisy|Brak miejsc]"` with empty parts omitted. The colour edge comes from inline `--card-h` / `--card-c`. The conflict badge carries `data-conflicts=<n>`. Speakers: up to three avatars while `settings.showAvatars` is on; when it is off the `row` variant shows the names joined by `", "` in a muted `span.speakerNames` (spec §7.4) and the other variants show no speakers.
   - `ContinuationStub({ session: TimedSession })` — `<div aria-hidden="true" data-stub data-session-id>` with the colour edge, a one-line muted title and `"do HH:MM"`; click opens the detail.
 
 - [ ] **Step 1: Write the failing test**
@@ -14937,15 +15172,16 @@ Create `src/test/SessionCard.test.tsx`:
 ```tsx
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DataProvider, buildAppData } from "../data/index";
 import type { Session, TimedSession } from "../data/types";
 import { hasStart } from "../data/types";
 import { EMPTY_FILTERS } from "../domain/filters";
-import { defaultSettings, useStore } from "../state/store";
+import { STORAGE_KEY, defaultSettings, useStore } from "../state/store";
 import { SessionCard } from "../components/grid/SessionCard";
 import { ContinuationStub } from "../components/grid/ContinuationStub";
+import { ViewSwitcher } from "../components/shell/ViewSwitcher";
 import { makeData, makeSession, makeSpeaker } from "./fixtures/build";
 
 const talk = makeSession({
@@ -14991,6 +15227,8 @@ function article(id: string): HTMLElement {
 }
 
 beforeEach(() => {
+  // persistence starts clean for every test; the store's persist middleware writes through setState
+  localStorage.clear();
   useStore.setState({
     day: "pt",
     view: "grid",
@@ -15049,6 +15287,18 @@ describe("SessionCard", () => {
     expect(screen.getByRole("button", { name: "Światło w studiu, 10:00–11:00, Sala wykł. 1, Zapisy" })).not.toBeNull();
   });
 
+  it("row variant shows speaker names when avatars are off", () => {
+    useStore.setState({ settings: { ...defaultSettings(1024), showAvatars: false } });
+    const { rerender } = render(wrap(<SessionCard session={talk} variant="row" showLocation />));
+    expect(screen.getByText("Anna Nr100, Anna Nr101, Anna Nr102, Anna Nr103")).not.toBeNull();
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    expect(document.querySelector("img")).toBeNull();
+    // the other variants keep showing no speakers while avatars are off
+    rerender(wrap(<SessionCard session={talk} variant="grid" showLocation />));
+    expect(screen.queryByText("Anna Nr100, Anna Nr101, Anna Nr102, Anna Nr103")).toBeNull();
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+  });
+
   it("toggles the favourite through the store and flips aria-pressed", async () => {
     const user = userEvent.setup();
     render(wrap(<SessionCard session={talk} variant="grid" showLocation />));
@@ -15061,6 +15311,35 @@ describe("SessionCard", () => {
     expect(article("1:pt").getAttribute("data-in-plan")).toBe("true");
     await user.click(screen.getByRole("button", { name: "Do planu" }));
     expect(useStore.getState().favourites).toEqual([]);
+  });
+
+  it("star toggle updates the Mój plan badge and persists across rehydrate", async () => {
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <>
+          <ViewSwitcher />
+          <SessionCard session={talk} variant="grid" showLocation />
+        </>,
+      ),
+    );
+    const planButton = () => screen.getByRole("button", { name: /Mój plan/ });
+    expect(within(planButton()).queryByText(/^\d+$/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Do planu" }));
+    expect(within(planButton()).getByText("1")).not.toBeNull();
+    // The persist middleware writes through every setState (the reset below included), so the
+    // slice the click stored is captured first and put back before rehydrating, as in store.test.ts.
+    const stored = localStorage.getItem(STORAGE_KEY);
+    expect(stored).toContain('"1:pt"');
+    act(() => useStore.setState({ favourites: [] }));
+    expect(within(planButton()).queryByText("1")).toBeNull();
+    localStorage.setItem(STORAGE_KEY, stored ?? "");
+    await act(async () => {
+      await useStore.persist.rehydrate();
+    });
+    expect(useStore.getState().favourites).toEqual(["1:pt"]);
+    expect(within(planButton()).getByText("1")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Do planu" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("opens the detail panel from the primary button", async () => {
@@ -15253,12 +15532,15 @@ export function SessionCard({ session, compact = false, showLocation, style, var
   const time = session.start === null ? null : formatRange(session.start, session.end);
   const location = locationLabel(session, index);
   const badge = signupBadge(session);
-  const speakers = showAvatars ? speakersOf(session, index).slice(0, MAX_AVATARS) : [];
+  const speakers = speakersOf(session, index);
+  const avatars = showAvatars ? speakers.slice(0, MAX_AVATARS) : [];
+  // Spec §7.4: a list row falls back to the names while avatars are off; the other variants then show no speakers.
+  const speakerNames = variant === "row" && !showAvatars ? speakers.map((speaker) => speaker.name).join(", ") : "";
   const label = [session.title, time, location, badge?.text]
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(", ");
   const paintLocation = showLocation && location.length > 0;
-  const hasMeta = paintLocation || speakers.length > 0 || badge !== null || conflicts > 0;
+  const hasMeta = paintLocation || avatars.length > 0 || speakerNames.length > 0 || badge !== null || conflicts > 0;
 
   const cardStyle = { ...style, "--card-h": String(hue.hue), "--card-c": String(hue.chroma) } as CSSProperties;
 
@@ -15289,9 +15571,9 @@ export function SessionCard({ session, compact = false, showLocation, style, var
         {hasMeta && (
           <span className={styles.meta}>
             {paintLocation && <span className={styles.location}>{location}</span>}
-            {speakers.length > 0 && (
+            {avatars.length > 0 && (
               <span className={styles.avatars}>
-                {speakers.map((speaker) => (
+                {avatars.map((speaker) => (
                   <Avatar
                     key={speaker.id}
                     name={speaker.name}
@@ -15302,6 +15584,7 @@ export function SessionCard({ session, compact = false, showLocation, style, var
                 ))}
               </span>
             )}
+            {speakerNames.length > 0 && <span className={styles.speakerNames}>{speakerNames}</span>}
             {badge && <span className={cx(styles.badge, styles[badge.tone])}>{badge.text}</span>}
             {conflicts > 0 && (
               <span className={styles.conflict} data-conflicts={conflicts} title={`Nakłada się z ${conflicts} w planie`}>
@@ -15420,6 +15703,15 @@ Create `src/components/grid/SessionCard.module.css`:
 
 .avatars > * + * {
   margin-left: -6px;
+}
+
+/* Row variant with avatars off (spec §7.4): the names, muted, on one line */
+.speakerNames {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
 }
 
 .badge {
@@ -15707,7 +15999,7 @@ Create `src/components/grid/ContinuationStub.module.css`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/SessionCard.test.tsx` — expected: 18 tests pass (16 SessionCard, 2 ContinuationStub).
+Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/SessionCard.test.tsx` — expected: 20 tests pass (18 SessionCard, 2 ContinuationStub).
 
 Run: `cd /Users/tom/Projects/conference-melt && npm run typecheck` — expected: no errors.
 
@@ -15719,8 +16011,9 @@ feat(grid): add SessionCard and ContinuationStub
 
 Article with two sibling controls (card__main button + Star), colour edge
 from hueFor, live / past / in-plan / conflict states, data-size from the
-inline height, grid / row / chip variants; decorative continuation stub
-with "do HH:MM" that opens the detail on click.
+inline height, grid / row / chip variants (rows name the speakers while
+avatars are off); decorative continuation stub with "do HH:MM" that
+opens the detail on click.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2
@@ -15732,7 +16025,7 @@ EOF
 ### Task 26: ScheduleGrid, TimelineBody, TimeRail, ColumnHeader, NowLine (timeline mode)
 
 **Files:**
-- Create: `src/components/grid/ScheduleGrid.tsx`
+- Replace the Task 23 placeholder: `src/components/grid/ScheduleGrid.tsx`
 - Create: `src/components/grid/ScheduleGrid.module.css`
 - Create: `src/components/grid/TimelineBody.tsx`
 - Create: `src/components/grid/TimelineBody.module.css`
@@ -15756,17 +16049,20 @@ EOF
   - Task 25: `SessionCard`.
 - Produces:
   - `ScheduleGrid({ sets: DaySets; columns: Column[]; resolved: ResolvedTime; dayId: string })` — renders the spec §9 empty state (`role="status"`) when `sets.rendered` is empty, otherwise a body keyed by `` `${resolved.mode}:${dayId}` `` (this task: `TimelineBody` for every mode; Task 27 adds the slot branch, Task 28 the strips).
+  - `export function FilteredEmpty({ text?: string; extraActions?: ReactNode })` (from `ScheduleGrid.tsx`) — the spec §9 filter empty state: the title (`"Brak wydarzeń dla tych filtrów"` unless `text` is passed), the active-filter chips from `filterLabels`, then `extraActions`, then `"Wyczyść filtry"` only while `activeFilterCount(filters) > 0`. Both grid empty states render through it; Task 33's `PlanView` reuses it.
+  - `export function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[]` (from `ScheduleGrid.tsx`) — the active filter labels in `FilterChips` order, for `FilteredEmpty` and for `PlanView` if it needs the labels themselves.
   - `TimelineBody({ sets: DaySets; columns: Column[]; density: Density; nowMinutes: number | null; dayId: string })` — the scroll container `div[data-scroll-container="timeline"]`; column headers `[data-column-header=<key>]`, bodies `[data-column=<key>]`, cards as direct `article` children of a body.
   - `TimeRail({ range: TimelineRange; zoom: number; now: { top: number; label: string } | null; className?: string; style?: CSSProperties })` — `div[data-time-rail]`, `aria-hidden`.
   - `ColumnHeader({ column: Column; className?: string; style?: CSSProperties })`.
   - `NowLine({ style?: CSSProperties })` — `<div id="now-line" data-now-line aria-hidden>` (the hook `LiveChip` scrolls to); `NowChip({ label: string; top?: number })` — the time chip placed inside a rail (both exported from `NowLine.tsx`).
-  - `src/test/gridHarness.tsx`: `GridHarness()` (reads the store, computes sets/columns/resolved like `App`, renders `ScheduleGrid`) and `renderGrid(data: ScheduleData)` (wraps it in a `DataProvider`).
+  - `src/test/gridHarness.tsx`: `GridHarness()` (reads the store, computes sets/columns/resolved like `App`, renders `ScheduleGrid`), `renderGrid(data: ScheduleData)` (wraps it in a `DataProvider`) and `nestingWarnings(spy: MockInstance): string[]` (the `console.error` calls that are DOM-nesting warnings, in React 18 and React 19 wording).
 
 - [ ] **Step 1: Write the failing test**
 
 Create `src/test/gridHarness.tsx`:
 
 ```tsx
+import type { MockInstance } from "vitest";
 import { render } from "@testing-library/react";
 import type { ScheduleData } from "../data/types";
 import { DataProvider, buildAppData, useData } from "../data/index";
@@ -15794,6 +16090,17 @@ export function renderGrid(data: ScheduleData) {
     </DataProvider>,
   );
 }
+
+/**
+ * Spec §10: no DOM-nesting warning may be logged. React 18 words it
+ * "validateDOMNesting(...): <x> cannot appear as a descendant of <y>", React 19
+ * "In HTML, <x> cannot be a descendant of <y>"; both are matched.
+ */
+export function nestingWarnings(spy: MockInstance): string[] {
+  return spy.mock.calls
+    .map((call) => call.map(String).join(" "))
+    .filter((message) => /validateDOMNesting|cannot (be|appear as) a (child|descendant) of/.test(message));
+}
 ```
 
 Create `src/test/ScheduleGrid.timeline.test.tsx`:
@@ -15805,7 +16112,7 @@ import userEvent from "@testing-library/user-event";
 import { EMPTY_FILTERS } from "../domain/filters";
 import { defaultSettings, useStore } from "../state/store";
 import { makeData, makeSession } from "./fixtures/build";
-import { renderGrid } from "./gridHarness";
+import { nestingWarnings, renderGrid } from "./gridHarness";
 
 const ZOOM = 2;
 const LANE_MIN = 180;
@@ -15942,6 +16249,18 @@ describe("ScheduleGrid in timeline mode", () => {
     expect(ids.slice(-2)).toEqual(["21:pt", "22:pt"]);
   });
 
+  it("logs no DOM nesting warning while rendering a column of many cards", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      setAxis("none");
+      renderGrid(data);
+      expect(document.querySelectorAll('[data-column="all"] > article')).toHaveLength(11);
+      expect(nestingWarnings(spy)).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("labels every full hour on the rail and ticks the half hours", () => {
     renderGrid(data);
     for (const label of ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]) {
@@ -16013,7 +16332,7 @@ describe("ScheduleGrid in timeline mode", () => {
 
 Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.timeline.test.tsx`
 
-Expected: the file fails to load with `Error: Failed to resolve import "../components/grid/ScheduleGrid" from "src/test/gridHarness.tsx". Does the file exist?`
+Expected: the harness resolves Task 23's placeholder `ScheduleGrid`, which renders none of the grid DOM, so every test fails — the first on `expect(document.querySelectorAll("[data-scroll-container]")).toHaveLength(1)` with a length of 0.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -16162,7 +16481,7 @@ Create `src/components/grid/ColumnHeader.module.css`:
   border-radius: var(--radius-chip);
   background: var(--surface-2);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--text-min);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -16172,7 +16491,7 @@ Create `src/components/grid/ColumnHeader.module.css`:
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--text-min);
 }
 ```
 
@@ -16444,10 +16763,10 @@ Create `src/components/grid/TimelineBody.module.css`:
 }
 ```
 
-Create `src/components/grid/ScheduleGrid.tsx`:
+Replace the Task 23 placeholder `src/components/grid/ScheduleGrid.tsx` with:
 
 ```tsx
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import styles from "./ScheduleGrid.module.css";
 import { useData } from "../../data/index";
 import type { ScheduleData } from "../../data/types";
@@ -16472,8 +16791,8 @@ export interface ScheduleGridProps {
 const FILTERED_EMPTY = "Brak wydarzeń dla tych filtrów";
 const STRIP_ONLY_EMPTY = "Wszystkie pasujące wydarzenia są całodniowe lub bez godziny. Znajdziesz je powyżej";
 
-/** Labels of every active filter, in FilterChips order, for the empty state. */
-function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
+/** Labels of every active filter, in FilterChips order, for the empty states (PlanView may reuse it). */
+export function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
   const labels = [
     ...filters.types.map((id) => index.typeById.get(id)?.name ?? String(id)),
     ...filters.locations.map((id) => index.locationById.get(id)?.short ?? String(id)),
@@ -16487,18 +16806,26 @@ function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): s
   return labels;
 }
 
-/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
-function GridEmpty({ sets }: { sets: DaySets }) {
+export interface FilteredEmptyProps {
+  /** Title line; defaults to the spec §9 "Brak wydarzeń dla tych filtrów". */
+  text?: string;
+  /** Extra buttons, rendered between the filter chips and "Wyczyść filtry". */
+  extraActions?: ReactNode;
+}
+
+/**
+ * Spec §9: the filter empty state — the title, one chip per active filter and "Wyczyść filtry"
+ * only while a filter is on. Both grid empty states render through it; PlanView (Task 33) reuses it.
+ */
+export function FilteredEmpty({ text = FILTERED_EMPTY, extraActions }: FilteredEmptyProps) {
   const { data, index } = useData();
   const filters = useStore((s) => s.filters);
   const clearFilters = useStore((s) => s.clearFilters);
-  const setSettings = useStore((s) => s.setSettings);
-  const stripOnly = sets.visible.length > 0;
   const labels = filterLabels(filters, data, index);
 
   return (
     <EmptyState
-      title={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      title={text}
       actions={
         <>
           {labels.length > 0 && (
@@ -16510,17 +16837,32 @@ function GridEmpty({ sets }: { sets: DaySets }) {
               ))}
             </span>
           )}
-          {stripOnly && sets.stripAllDay.length > 0 && (
-            <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
-              Pokaż w siatce
-            </button>
-          )}
+          {extraActions}
           {activeFilterCount(filters) > 0 && (
             <button type="button" className={cx(styles.button, styles.secondary)} onClick={clearFilters}>
               Wyczyść filtry
             </button>
           )}
         </>
+      }
+    />
+  );
+}
+
+/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
+function GridEmpty({ sets }: { sets: DaySets }) {
+  const setSettings = useStore((s) => s.setSettings);
+  const stripOnly = sets.visible.length > 0;
+
+  return (
+    <FilteredEmpty
+      text={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      extraActions={
+        stripOnly && sets.stripAllDay.length > 0 ? (
+          <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
+            Pokaż w siatce
+          </button>
+        ) : undefined
       }
     />
   );
@@ -16619,7 +16961,7 @@ Create `src/components/grid/ScheduleGrid.module.css`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.timeline.test.tsx` — expected: 11 tests pass.
+Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.timeline.test.tsx` — expected: 12 tests pass. These assertions were verified against jsdom 30.x; if `npm install` resolves jsdom 26.x and the `calc()` or `gridRow` read-back assertions fail, bump `jsdom` in package.json to `^30.0.1` and re-run.
 
 Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/SessionCard.test.tsx src/components/grid/gridLayout.test.ts` — expected: still green.
 
@@ -16634,7 +16976,7 @@ feat(grid): add ScheduleGrid with the timeline body, rail, headers and now line
 Sticky corner / headers / rail inside one scrolling CSS grid, column
 bodies with absolutely positioned cards from timelineGeometry, the now
 line with its rail chip and the first-render scroll, and the spec §9
-empty states in place of the scroll container.
+empty states (the reusable FilteredEmpty) in place of the scroll container.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2
@@ -16653,13 +16995,13 @@ EOF
 
 **Interfaces:**
 - Consumes:
-  - `src/components/grid/gridLayout.ts` (Task 24, as implemented): `slotPlacements(column, columnIndex, slots, tolerance, renderedIds): SlotPlacement[]`, `slotCells(placements): SlotCell[]` (`{ column, row, stubs, overflow, cards }`, stubs capped at `MAX_STUBS = 3`), `gridArea(p): { gridColumn, gridRow }`, `nowScrollTop`, `prefersReducedMotion`, types `Density`, `SlotPlacement`.
+  - `src/components/grid/gridLayout.ts` (Task 24, as implemented): `slotPlacements(column, columnIndex, slots, tolerance, renderedIds): SlotPlacement[]`, `slotCells(placements): SlotCell[]` (`{ column, row, stubs, overflow, cards }`, stubs capped at `MAX_STUBS = 3`), `gridArea(p): { gridColumn, gridRow }`, `nowScrollTop`, `prefersReducedMotion`, types `Density`, `SlotCell`, `SlotPlacement`.
   - `src/domain/slots.ts`: type `Slot` (`{ index, start, lastStart, end, sessionIds }`); `src/domain/time.ts`: `formatTime`, `formatRange`.
   - `src/state/store.ts`: `useStore` (`settings.columnAxis`, `settings.slotTolerance`, `settings.density`); `src/state/derive.ts`: type `Column`.
-  - Task 25: `SessionCard`, `ContinuationStub`; Task 26: `ColumnHeader`, `NowLine`, `NowChip`, `renderGrid` (test harness).
+  - Task 25: `SessionCard`, `ContinuationStub`; Task 26: `ColumnHeader`, `NowLine`, `NowChip`, `renderGrid` and `nestingWarnings` (test harness).
   - `src/test/fixtures/fri-lectures.json` (`ScheduleData` subset, 27 Friday lecture sessions).
 - Produces:
-  - `SlotBody({ columns: Column[]; slots: Slot[]; density: Density; nowMinutes: number | null; dayId: string })` — the scroll container `div[data-scroll-container="slots"]` is the grid; rail cells `[data-slot-row=<r>]`, cell wrappers `[data-cell="<c>:<r>"]` with inline `gridColumn`/`gridRow`, spanning items `[data-span=<sessionId>]` with `gridRow: "<r> / span k"`, the now line as a `1 / -1` item on the row containing now with the chip inside that row's rail cell.
+  - `SlotBody({ columns: Column[]; slots: Slot[]; density: Density; nowMinutes: number | null; dayId: string })` — the scroll container `div[data-scroll-container="slots"]` is the grid; rail cells `[data-slot-row=<r>]`, cell wrappers `[data-cell="<c>:<r>"]` with inline `gridColumn`/`gridRow`, spanning items `[data-span=<sessionId>]` with `gridRow: "<r> / span k"`, the now line as a `1 / -1` item on the row containing now with the chip inside that row's rail cell. Cell wrappers and spanning items are rendered as one list sorted by (column, row), so DOM order inside a column follows start time (spec §7.3).
   - `ScheduleGrid` now branches on `resolved.mode`.
 
 - [ ] **Step 1: Write the failing test**
@@ -16667,14 +17009,14 @@ EOF
 Create `src/test/ScheduleGrid.slots.test.tsx`:
 
 ```tsx
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, within } from "@testing-library/react";
 import type { ScheduleData } from "../data/types";
 import { EMPTY_FILTERS } from "../domain/filters";
 import { defaultSettings, useStore, type Settings } from "../state/store";
 import friLecturesJson from "./fixtures/fri-lectures.json";
 import { makeData, makeSession } from "./fixtures/build";
-import { renderGrid } from "./gridHarness";
+import { nestingWarnings, renderGrid } from "./gridHarness";
 
 const friLectures = friLecturesJson as unknown as ScheduleData;
 
@@ -16749,6 +17091,16 @@ function expectOneCardPerColumn(): void {
   for (const ids of perColumn.values()) expect(new Set(ids).size).toBe(ids.length);
 }
 
+/** Spec §7.3: wrappers and spanning items sit in DOM order by (column, row), so Tab order follows start time. */
+function expectDomOrderFollowsRows(): void {
+  const order = items().map((item) => ({
+    column: Number.parseInt(item.style.gridColumn, 10),
+    row: parseRow(item.style.gridRow).row,
+  }));
+  const sorted = [...order].sort((a, b) => a.column - b.column || a.row - b.row);
+  expect(order).toEqual(sorted);
+}
+
 describe("forced slot mode on the synthetic spec §10 set", () => {
   beforeEach(() => resetStore("sob", slotSettings({})));
 
@@ -16796,6 +17148,7 @@ describe("forced slot mode on the synthetic spec §10 set", () => {
       const ids = [...wrapper.querySelectorAll("[data-session-id]")].map((el) => el.getAttribute("data-session-id"));
       expect(new Set(ids).size).toBe(ids.length);
     }
+    expectDomOrderFollowsRows();
     expectDisjoint();
     expectOneCardPerColumn();
   });
@@ -16842,10 +17195,19 @@ describe("forced slot mode on the Friday lectures fixture", () => {
     useStore.setState({ settings: slotSettings({ columnAxis: "location" }) });
     renderGrid(data);
     const span = document.querySelector<HTMLElement>('[data-span="39564:pt"]');
-    expect(span?.style.gridRow.replace(/\s+/g, " ")).toBe("5 / span 2");
-    expect(span?.querySelectorAll('article[data-session-id="39564:pt"]')).toHaveLength(1);
+    expect(span).not.toBeNull();
+    const spanItem = span as HTMLElement;
+    expect(spanItem.style.gridRow.replace(/\s+/g, " ")).toBe("5 / span 2");
+    expect(spanItem.querySelectorAll('article[data-session-id="39564:pt"]')).toHaveLength(1);
     expect(document.querySelectorAll("[data-stub]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-span]")).toHaveLength(9);
+    // Spec §7.3: in its column the spanning item precedes every wrapper of a later row and follows every earlier one.
+    const sameColumn = items().filter((el) => el !== spanItem && el.style.gridColumn === spanItem.style.gridColumn);
+    for (const el of sameColumn) {
+      const follows = (spanItem.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      expect(follows).toBe(parseRow(el.style.gridRow).row > 5);
+    }
+    expectDomOrderFollowsRows();
     expectDisjoint();
     expectOneCardPerColumn();
   });
@@ -16869,7 +17231,20 @@ describe("forced slot mode on the Friday lectures fixture", () => {
     );
     expect(ids).toHaveLength(27);
     expect(new Set(ids).size).toBe(27);
+    expectDomOrderFollowsRows();
     expectDisjoint();
+  });
+
+  it("logs no DOM nesting warning while rendering the location-axis grid", () => {
+    useStore.setState({ settings: slotSettings({ columnAxis: "location" }) });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      renderGrid(data);
+      expect(document.querySelectorAll("[data-scroll-container] article").length).toBeGreaterThanOrEqual(27);
+      expect(nestingWarnings(spy)).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 ```
@@ -16903,6 +17278,7 @@ import {
   slotCells,
   slotPlacements,
   type Density,
+  type SlotCell,
   type SlotPlacement,
 } from "./gridLayout";
 
@@ -16928,6 +17304,11 @@ function nowRowOf(slots: Slot[], nowMinutes: number | null): number {
   return slots.findIndex((slot) => slot.start <= nowMinutes && nowMinutes < slot.end);
 }
 
+/** One grid item: a cell wrapper (stubs, overflow, cards) or a spanning card; both are placed by (column, row). */
+type GridItem =
+  | { kind: "cell"; column: number; row: number; cell: SlotCell }
+  | { kind: "span"; column: number; row: number; placement: SlotPlacement };
+
 export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBodyProps) {
   const axis = useStore((s) => s.settings.columnAxis);
   const tolerance = useStore((s) => s.settings.slotTolerance);
@@ -16937,13 +17318,21 @@ export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBod
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<string | null>(null);
 
-  const { cells, spans, sessionById } = useMemo(() => {
+  const { items, sessionById } = useMemo(() => {
     const placements = columns.flatMap((column, i) => slotPlacements(column, i, slots, tolerance, column.renderedIds));
     const sessionById = new Map<string, TimedSession>();
     for (const column of columns) {
       for (const s of column.sessions) sessionById.set(s.id, s);
     }
-    return { cells: slotCells(placements), spans: placements.filter((p) => p.kind === "span"), sessionById };
+    const items: GridItem[] = [
+      ...slotCells(placements).map((cell): GridItem => ({ kind: "cell", column: cell.column, row: cell.row, cell })),
+      ...placements
+        .filter((p) => p.kind === "span")
+        .map((placement): GridItem => ({ kind: "span", column: placement.column, row: placement.row, placement })),
+    ];
+    // Spec §7.3: DOM order inside a column follows start time, so wrappers and spanning cards interleave by row.
+    items.sort((a, b) => a.column - b.column || a.row - b.row);
+    return { items, sessionById };
   }, [columns, slots, tolerance]);
 
   const nowRow = nowRowOf(slots, nowMinutes);
@@ -16965,7 +17354,7 @@ export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBod
     gridAutoRows: `minmax(${density.rowMin}px, auto)`,
   };
 
-  // Cards are numbered in DOM order (cells, then spans) for the entrance stagger.
+  // Cards are numbered in DOM order, which is (column, row) order, for the entrance stagger.
   let order = 0;
   const renderCard = (p: SlotPlacement): ReactNode => {
     const s = sessionById.get(p.sessionId);
@@ -17001,12 +17390,21 @@ export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBod
           {slot.index === nowRow && nowMinutes !== null && <NowChip label={formatTime(nowMinutes)} />}
         </div>
       ))}
-      {cells.map((cell) => {
+      {items.map((item) => {
+        if (item.kind === "span") {
+          const p = item.placement;
+          return (
+            <div key={`span:${p.column}:${p.sessionId}`} className={styles.span} style={gridArea(p)} data-span={p.sessionId}>
+              {renderCard(p)}
+            </div>
+          );
+        }
+        const { cell } = item;
         const anchor = cell.stubs[0] ?? cell.cards[0];
         if (!anchor) return null;
         const key = `${cell.column}:${cell.row}`;
         return (
-          <div key={key} className={styles.cell} style={gridArea(anchor)} data-cell={key}>
+          <div key={`cell:${key}`} className={styles.cell} style={gridArea(anchor)} data-cell={key}>
             {cell.stubs.map((p) => {
               const s = sessionById.get(p.sessionId);
               return s ? <ContinuationStub key={s.id} session={s} /> : null;
@@ -17016,11 +17414,6 @@ export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBod
           </div>
         );
       })}
-      {spans.map((p) => (
-        <div key={`${p.column}:${p.sessionId}`} className={styles.span} style={gridArea(p)} data-span={p.sessionId}>
-          {renderCard(p)}
-        </div>
-      ))}
       {nowRow >= 0 && <NowLine style={{ gridColumn: "1 / -1", gridRow: String(nowRow + 2) }} />}
     </div>
   );
@@ -17089,7 +17482,7 @@ Create `src/components/grid/SlotBody.module.css`:
 
 .railRange {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--text-min);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -17118,7 +17511,7 @@ Create `src/components/grid/SlotBody.module.css`:
 Modify `src/components/grid/ScheduleGrid.tsx`: add the import and the branch. The complete file after the change:
 
 ```tsx
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import styles from "./ScheduleGrid.module.css";
 import { useData } from "../../data/index";
 import type { ScheduleData } from "../../data/types";
@@ -17144,8 +17537,8 @@ export interface ScheduleGridProps {
 const FILTERED_EMPTY = "Brak wydarzeń dla tych filtrów";
 const STRIP_ONLY_EMPTY = "Wszystkie pasujące wydarzenia są całodniowe lub bez godziny. Znajdziesz je powyżej";
 
-/** Labels of every active filter, in FilterChips order, for the empty state. */
-function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
+/** Labels of every active filter, in FilterChips order, for the empty states (PlanView may reuse it). */
+export function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
   const labels = [
     ...filters.types.map((id) => index.typeById.get(id)?.name ?? String(id)),
     ...filters.locations.map((id) => index.locationById.get(id)?.short ?? String(id)),
@@ -17159,18 +17552,26 @@ function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): s
   return labels;
 }
 
-/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
-function GridEmpty({ sets }: { sets: DaySets }) {
+export interface FilteredEmptyProps {
+  /** Title line; defaults to the spec §9 "Brak wydarzeń dla tych filtrów". */
+  text?: string;
+  /** Extra buttons, rendered between the filter chips and "Wyczyść filtry". */
+  extraActions?: ReactNode;
+}
+
+/**
+ * Spec §9: the filter empty state — the title, one chip per active filter and "Wyczyść filtry"
+ * only while a filter is on. Both grid empty states render through it; PlanView (Task 33) reuses it.
+ */
+export function FilteredEmpty({ text = FILTERED_EMPTY, extraActions }: FilteredEmptyProps) {
   const { data, index } = useData();
   const filters = useStore((s) => s.filters);
   const clearFilters = useStore((s) => s.clearFilters);
-  const setSettings = useStore((s) => s.setSettings);
-  const stripOnly = sets.visible.length > 0;
   const labels = filterLabels(filters, data, index);
 
   return (
     <EmptyState
-      title={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      title={text}
       actions={
         <>
           {labels.length > 0 && (
@@ -17182,17 +17583,32 @@ function GridEmpty({ sets }: { sets: DaySets }) {
               ))}
             </span>
           )}
-          {stripOnly && sets.stripAllDay.length > 0 && (
-            <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
-              Pokaż w siatce
-            </button>
-          )}
+          {extraActions}
           {activeFilterCount(filters) > 0 && (
             <button type="button" className={cx(styles.button, styles.secondary)} onClick={clearFilters}>
               Wyczyść filtry
             </button>
           )}
         </>
+      }
+    />
+  );
+}
+
+/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
+function GridEmpty({ sets }: { sets: DaySets }) {
+  const setSettings = useStore((s) => s.setSettings);
+  const stripOnly = sets.visible.length > 0;
+
+  return (
+    <FilteredEmpty
+      text={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      extraActions={
+        stripOnly && sets.stripAllDay.length > 0 ? (
+          <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
+            Pokaż w siatce
+          </button>
+        ) : undefined
       }
     />
   );
@@ -17226,7 +17642,7 @@ export function ScheduleGrid({ sets, columns, resolved, dayId }: ScheduleGridPro
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.slots.test.tsx` — expected: 10 tests pass.
+Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.slots.test.tsx` — expected: 11 tests pass. These assertions were verified against jsdom 30.x; if `npm install` resolves jsdom 26.x and the `calc()` or `gridRow` read-back assertions fail, bump `jsdom` in package.json to `^30.0.1` and re-run.
 
 Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/ScheduleGrid.timeline.test.tsx src/test/SessionCard.test.tsx` — expected: still green (the timeline file forces `timeMode: "timeline"`, so nothing there changes mode).
 
@@ -17240,9 +17656,10 @@ feat(grid): add the slot-mode body
 
 The scroll container is the CSS grid: rail cells per detected slot,
 cell wrappers with stubs before cards and "+N w trakcie", spanning
-cards at "row / span k" when spanAllowed, the now line as a
-column-spanning item with its chip in the rail cell; ScheduleGrid
-branches on the resolved mode.
+cards at "row / span k" when spanAllowed, wrappers and spans in one
+(column, row)-sorted DOM order, the now line as a column-spanning item
+with its chip in the rail cell; ScheduleGrid branches on the resolved
+mode.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2
@@ -17262,7 +17679,8 @@ EOF
 **Interfaces:**
 - Consumes:
   - `src/state/derive.ts`: `DaySets` (`stripAllDay` is already empty while `settings.allDayStrip` is off; `stripNoTime` holds visible sessions without a start).
-  - Task 25: `SessionCard` (variant `"chip"`); Task 26: `renderGrid` (test harness), `NowLine` hooks.
+  - Task 25: `SessionCard` (variant `"chip"`); Task 26: `renderGrid` and `GridHarness` (test harness), `NowLine` hooks.
+  - `src/components/shell/FilterChips.tsx` (Task 23): `FilterChips()` — rendered in the test next to the harness; its remove buttons are named `Usuń filtr: <label>`.
   - `src/components/shell/LiveChip.tsx` (Task 23) scrolls to `document.querySelector("[data-now-line]")` in grid view — provided by `NowLine` since Task 26; this task verifies the hook end to end through `ScheduleGrid`.
 - Produces:
   - `Strips({ sets: DaySets })` — `div[data-strips]` holding, in order, the all-day strip (`role="group"`, name `"Całodniowe (N)"`) and the no-time strip (name `"Bez godziny (N)"`), each a horizontally scrolling row of chip cards; renders `null` when both are empty. Strips sit outside and above the scroll container and are not sticky.
@@ -17273,12 +17691,14 @@ Create `src/test/Strips.test.tsx`:
 
 ```tsx
 import { beforeEach, describe, expect, it } from "vitest";
-import { act, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DataProvider, buildAppData } from "../data/index";
 import { EMPTY_FILTERS } from "../domain/filters";
 import { defaultSettings, useStore } from "../state/store";
+import { FilterChips } from "../components/shell/FilterChips";
 import { makeData, makeSession } from "./fixtures/build";
-import { renderGrid } from "./gridHarness";
+import { GridHarness, renderGrid } from "./gridHarness";
 
 const STRIP_ONLY_EMPTY = "Wszystkie pasujące wydarzenia są całodniowe lub bez godziny. Znajdziesz je powyżej";
 
@@ -17295,6 +17715,11 @@ const zone = makeSession({
 const talk = makeSession({ id: "1:pt", eventId: 1, title: "Wykład", start: 600, end: 660 });
 const noTime = makeSession({ id: "4:pt", eventId: 4, title: "Bez godziny sesja", start: null, end: null });
 const data = makeData([zone, talk, noTime]);
+
+// Two lectures (type 184, Prelekcja) and one workshop (type 5, Warsztaty) for the filter-chip round trip.
+const second = makeSession({ id: "3:pt", eventId: 3, title: "Drugi wykład", start: 720, end: 780 });
+const workshop = makeSession({ id: "2:pt", eventId: 2, title: "Warsztat", start: 660, end: 720, typeIds: [5] });
+const chipData = makeData([talk, second, workshop, noTime]);
 
 beforeEach(() => {
   useStore.setState({
@@ -17382,6 +17807,26 @@ describe("Strips", () => {
     expect(line?.id).toBe("now-line");
     expect(line?.closest("[data-scroll-container]")).not.toBeNull();
   });
+
+  it("removing a filter chip restores the sessions", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ filters: { ...EMPTY_FILTERS, types: [5] } });
+    render(
+      <DataProvider value={buildAppData(chipData)}>
+        <FilterChips />
+        <GridHarness />
+      </DataProvider>,
+    );
+    const cardIds = () =>
+      [...document.querySelectorAll("[data-scroll-container] article[data-session-id]")]
+        .map((el) => el.getAttribute("data-session-id"))
+        .sort();
+    expect(cardIds()).toEqual(["2:pt"]);
+    await user.click(screen.getByRole("button", { name: "Usuń filtr: Warsztaty" }));
+    expect(useStore.getState().filters.types).toEqual([]);
+    expect(screen.queryByRole("button", { name: "Usuń filtr: Warsztaty" })).toBeNull();
+    expect(cardIds()).toEqual(["1:pt", "2:pt", "3:pt"]);
+  });
 });
 ```
 
@@ -17389,7 +17834,7 @@ describe("Strips", () => {
 
 Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/Strips.test.tsx`
 
-Expected: the file loads and the strip tests fail with `TestingLibraryElementError: Unable to find an accessible element with the role "group" and name "Całodniowe (1)"` (only "renders no strips when nothing sits in them" and "keeps the now line reachable for the live chip" pass).
+Expected: the file loads and the strip tests fail with `TestingLibraryElementError: Unable to find an accessible element with the role "group" and name "Całodniowe (1)"` (only "renders no strips when nothing sits in them", "keeps the now line reachable for the live chip" and "removing a filter chip restores the sessions" pass, since none of them asserts a strip).
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -17485,7 +17930,7 @@ Create `src/components/grid/Strips.module.css`:
 Modify `src/components/grid/ScheduleGrid.tsx`: import `Strips` and render it first inside the section. The complete file after the change:
 
 ```tsx
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import styles from "./ScheduleGrid.module.css";
 import { useData } from "../../data/index";
 import type { ScheduleData } from "../../data/types";
@@ -17512,8 +17957,8 @@ export interface ScheduleGridProps {
 const FILTERED_EMPTY = "Brak wydarzeń dla tych filtrów";
 const STRIP_ONLY_EMPTY = "Wszystkie pasujące wydarzenia są całodniowe lub bez godziny. Znajdziesz je powyżej";
 
-/** Labels of every active filter, in FilterChips order, for the empty state. */
-function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
+/** Labels of every active filter, in FilterChips order, for the empty states (PlanView may reuse it). */
+export function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): string[] {
   const labels = [
     ...filters.types.map((id) => index.typeById.get(id)?.name ?? String(id)),
     ...filters.locations.map((id) => index.locationById.get(id)?.short ?? String(id)),
@@ -17527,18 +17972,26 @@ function filterLabels(filters: Filters, data: ScheduleData, index: DataIndex): s
   return labels;
 }
 
-/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
-function GridEmpty({ sets }: { sets: DaySets }) {
+export interface FilteredEmptyProps {
+  /** Title line; defaults to the spec §9 "Brak wydarzeń dla tych filtrów". */
+  text?: string;
+  /** Extra buttons, rendered between the filter chips and "Wyczyść filtry". */
+  extraActions?: ReactNode;
+}
+
+/**
+ * Spec §9: the filter empty state — the title, one chip per active filter and "Wyczyść filtry"
+ * only while a filter is on. Both grid empty states render through it; PlanView (Task 33) reuses it.
+ */
+export function FilteredEmpty({ text = FILTERED_EMPTY, extraActions }: FilteredEmptyProps) {
   const { data, index } = useData();
   const filters = useStore((s) => s.filters);
   const clearFilters = useStore((s) => s.clearFilters);
-  const setSettings = useStore((s) => s.setSettings);
-  const stripOnly = sets.visible.length > 0;
   const labels = filterLabels(filters, data, index);
 
   return (
     <EmptyState
-      title={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      title={text}
       actions={
         <>
           {labels.length > 0 && (
@@ -17550,17 +18003,32 @@ function GridEmpty({ sets }: { sets: DaySets }) {
               ))}
             </span>
           )}
-          {stripOnly && sets.stripAllDay.length > 0 && (
-            <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
-              Pokaż w siatce
-            </button>
-          )}
+          {extraActions}
           {activeFilterCount(filters) > 0 && (
             <button type="button" className={cx(styles.button, styles.secondary)} onClick={clearFilters}>
               Wyczyść filtry
             </button>
           )}
         </>
+      }
+    />
+  );
+}
+
+/** Spec §9: replaces the scroll container whenever the rendered set is empty. */
+function GridEmpty({ sets }: { sets: DaySets }) {
+  const setSettings = useStore((s) => s.setSettings);
+  const stripOnly = sets.visible.length > 0;
+
+  return (
+    <FilteredEmpty
+      text={stripOnly ? STRIP_ONLY_EMPTY : FILTERED_EMPTY}
+      extraActions={
+        stripOnly && sets.stripAllDay.length > 0 ? (
+          <button type="button" className={styles.button} onClick={() => setSettings({ allDayStrip: false })}>
+            Pokaż w siatce
+          </button>
+        ) : undefined
       }
     />
   );
@@ -17595,7 +18063,7 @@ export function ScheduleGrid({ sets, columns, resolved, dayId }: ScheduleGridPro
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/Strips.test.tsx` — expected: 7 tests pass.
+Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/Strips.test.tsx` — expected: 8 tests pass.
 
 Run: `cd /Users/tom/Projects/conference-melt && npx vitest run src/test/SessionCard.test.tsx src/test/ScheduleGrid.timeline.test.tsx src/test/ScheduleGrid.slots.test.tsx src/components/grid/gridLayout.test.ts` — expected: all green (the timeline file's zone now also renders as an all-day chip, which none of its assertions exclude: card lookups are by `data-session-id` on the layout cards, and the scroll-container queries target `[data-column="all"]`).
 
@@ -17620,13 +18088,13 @@ EOF
 ### Task 29: ScheduleList
 
 **Files:**
-- Create: `src/components/list/ScheduleList.tsx`
+- Replace the Task 23 placeholder: `src/components/list/ScheduleList.tsx`
 - Create: `src/components/list/ScheduleList.module.css`
 - Test: `src/test/ScheduleList.test.tsx`
 
 **Interfaces:**
-- Consumes: `ListGroup { key: string; label: string; sessions: Session[]; total: number; parallel: number }` from `src/state/derive.ts` (groups are already ordered by `listGroups`: "Całodniowe" first, slot or hourly groups, "Bez godziny" last; groups without visible rows are already omitted); `SessionCard: { session: Session; compact?: boolean; showLocation: boolean; style?: CSSProperties; variant: "grid" | "row" | "chip" }` from `src/components/grid/SessionCard.tsx`; `nowFor(day: Day, now: Date): number | null` and `liveState(s: Session, nowMinutes: number | null): LiveState` from `src/domain/now.ts`; `useStore` (`day`, `now`) from `src/state/store.ts`; `useData()` from `src/data/index.ts`.
-- Produces: `ScheduleList({ groups: ListGroup[] })` (named export) and `export const LIVE_GROUP_ID = "list-live"` — the DOM id the LiveChip (shell part) scrolls to in list view via `document.getElementById(LIVE_GROUP_ID)?.scrollIntoView(...)`. The id is placed on the first group section that holds a session whose `liveState` is `"live"` or `"soon"`; absent when the selected day is not today.
+- Consumes: `ListGroup { key: string; label: string; sessions: Session[]; total: number; parallel: number }` from `src/state/derive.ts` (groups are already ordered by `listGroups`: "Całodniowe" first, slot or hourly groups, "Bez godziny" last; groups without visible rows are already omitted); `SessionCard: { session: Session; compact?: boolean; showLocation: boolean; style?: CSSProperties; variant: "grid" | "row" | "chip" }` from `src/components/grid/SessionCard.tsx`; `nowFor(day: Day, now: Date): number | null` and `liveState(s: Session, nowMinutes: number | null): LiveState` from `src/domain/now.ts`; `useStore` (`day`, `now`) from `src/state/store.ts`; `useData()` from `src/data/index.tsx`.
+- Produces: `ScheduleList({ groups: ListGroup[] })` (named export) and `export const LIVE_GROUP_ID = "list-live"`. The first group section that holds a session whose `liveState` is `"live"` or `"soon"` carries two hooks: `id={LIVE_GROUP_ID}`, so `document.getElementById(LIVE_GROUP_ID)` finds it, and the empty `data-live-group` attribute, which is what the LiveChip (shell part) queries with `document.querySelector("[data-live-group]")` before calling `scrollIntoView` in list view. Both hooks sit on the same section and both are absent when the selected day is not today.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -17702,13 +18170,17 @@ describe("ScheduleList", () => {
     expect(within(section).getByRole("button", { name: /Analog dziś/ })).toBeTruthy();
   });
 
-  it("puts the list-live id on the first group holding a live session when the day is today", () => {
+  it("puts the list-live id and data-live-group on the first group holding a live session when the day is today", () => {
     useStore.setState({ now: new Date(2026, 8, 4, 10, 0) });
     renderList([morning, afternoon]);
     const live = document.getElementById(LIVE_GROUP_ID);
     expect(live).not.toBeNull();
     expect(within(live as HTMLElement).getByRole("heading", { name: "09:30" })).toBeTruthy();
     expect(screen.getAllByRole("region").filter((el) => el.id === LIVE_GROUP_ID)).toHaveLength(1);
+    // The LiveChip scrolls to the data attribute, so it must sit on the same section as the id.
+    expect(live?.getAttribute("data-live-group")).toBe("");
+    expect(document.querySelectorAll("[data-live-group]")).toHaveLength(1);
+    expect(document.querySelector("[data-live-group]")).toBe(live);
   });
 
   it("uses a soon session when nothing is live, keeping the first qualifying group in order", () => {
@@ -17719,12 +18191,14 @@ describe("ScheduleList", () => {
     const live = document.getElementById(LIVE_GROUP_ID);
     expect(live).not.toBeNull();
     expect(within(live as HTMLElement).getByRole("heading", { name: "10:00" })).toBeTruthy();
+    expect(document.querySelector("[data-live-group]")).toBe(live);
   });
 
-  it("adds no list-live id when the selected day is not today", () => {
+  it("adds neither the list-live id nor data-live-group when the selected day is not today", () => {
     useStore.setState({ now: new Date(2026, 8, 3, 10, 0) });
     renderList([morning, afternoon]);
     expect(document.getElementById(LIVE_GROUP_ID)).toBeNull();
+    expect(document.querySelector("[data-live-group]")).toBeNull();
   });
 
   it("renders nothing for an empty group list", () => {
@@ -17751,7 +18225,7 @@ import { liveState, nowFor } from "../../domain/now";
 import { SessionCard } from "../grid/SessionCard";
 import styles from "./ScheduleList.module.css";
 
-/** DOM id of the first group with a live or soon session; the LiveChip scrolls to it in list view. */
+/** DOM id of the first group with a live or soon session; that section also carries `data-live-group`, which the LiveChip queries in list view. */
 export const LIVE_GROUP_ID = "list-live";
 
 interface Props {
@@ -17791,6 +18265,7 @@ export function ScheduleList({ groups }: Props) {
           <section
             key={g.key}
             id={g.key === liveKey ? LIVE_GROUP_ID : undefined}
+            data-live-group={g.key === liveKey ? "" : undefined}
             className={styles.group}
             aria-labelledby={headingId}
           >
@@ -17904,7 +18379,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 **Files:**
 - Create: `src/components/filters/Facet.tsx`
 - Create: `src/components/filters/Facet.module.css`
-- Create: `src/components/filters/FiltersPanel.tsx`
+- Replace the Task 23 placeholder: `src/components/filters/FiltersPanel.tsx`
 - Create: `src/components/filters/FiltersPanel.module.css`
 - Test: `src/test/FiltersPanel.test.tsx`
 
@@ -17922,7 +18397,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
   }
   ```
 
-  DOM contract used by tests and by nothing else: every option is `<label data-dimmed="true"?><input type="checkbox" aria-label={label} aria-describedby={countId}/>…<span id={countId}>{count}</span></label>`; the per-facet clear button has `aria-label="Wyczyść: <title>"`; the inline search input has `aria-label="Szukaj: <title>"`; the global clear button has `aria-label="Wyczyść wszystkie filtry"`.
+  DOM contract used by tests and by nothing else: each facet title is the first `<span>` inside the `<details>` element's `<summary>` (the order test selects it with `summary span`, which keeps the signup option labelled "Zapisy" out of the match); every option is `<label data-dimmed="true"?><input type="checkbox" aria-label={label} aria-describedby={countId}/>…<span id={countId}>{count}</span></label>`; the per-facet clear button has `aria-label="Wyczyść: <title>"`; the inline search input has `aria-label="Szukaj: <title>"`; the global clear button has `aria-label="Wyczyść wszystkie filtry"`.
 
 Facet counts run over the selected day's sessions (`index.sessionsByDay.get(day)`), intersected with the plan set in the plan view, so a count is exactly how many rows ticking that option would leave in the current view. Location options are labelled `"<venue> · <room>"` (venue alone when `room` is null) because the level sub-header already names the level. Level sub-headers use the §7.2 labels: "Poziom 0", "Poziom I", "Poziom I i II", "Poziom II", "Poziom III", "Inne".
 
@@ -18009,7 +18484,8 @@ beforeEach(() => {
 describe("FiltersPanel", () => {
   it("shows the facets in order with counts from facetCounts", () => {
     renderPanel();
-    const titles = screen.getAllByText(/^(Typ|Miejsce|Tematyka|Marka|Zapisy)$/).map((el) => el.textContent);
+    // Scoped to the <summary> title spans: the signup option label "Zapisy" would otherwise match as a sixth element.
+    const titles = screen.getAllByText(/^(Typ|Miejsce|Tematyka|Marka|Zapisy)$/, { selector: "summary span" }).map((el) => el.textContent);
     expect(titles).toEqual(["Typ", "Miejsce", "Tematyka", "Marka", "Zapisy"]);
     expect(countOf(screen.getByLabelText("Prelekcja"))).toBe("2");
     expect(countOf(screen.getByLabelText("Warsztaty"))).toBe("1");
@@ -18335,7 +18811,7 @@ export function Facet({ title, options, selected, defaultOpen, searchable, onTog
 
 .groupLabel {
   padding: 6px 0 2px;
-  font-size: 11px;
+  font-size: var(--text-min);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -18641,7 +19117,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 ### Task 31: SettingsPanel
 
 **Files:**
-- Create: `src/components/settings/SettingsPanel.tsx`
+- Replace the Task 23 placeholder: `src/components/settings/SettingsPanel.tsx`
 - Create: `src/components/settings/SettingsPanel.module.css`
 - Test: `src/test/SettingsPanel.test.tsx`
 
@@ -19065,13 +19541,13 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 - Create: `src/components/detail/SpeakerBlock.module.css`
 - Create: `src/components/detail/SameTimeList.tsx`
 - Create: `src/components/detail/SameTimeList.module.css`
-- Create: `src/components/detail/DetailSheet.tsx`
+- Replace the Task 23 placeholder: `src/components/detail/DetailSheet.tsx`
 - Create: `src/components/detail/DetailSheet.module.css`
 - Test: `src/test/DetailSheet.test.tsx`
 
 **Interfaces:**
 - Consumes: `overlaps(a: Session, b: Session): boolean` from `src/domain/overlaps.ts`; `formatRange(start, end)`, `durationLabel(start, end)` from `src/domain/time.ts`; `locationsOf(s, index)`, `speakersOf(s, index)`, `locationLabel(s, index)` from `src/domain/lookup.ts`; `useStore` (`selectedSessionId`, `openSheet`, `previewPlan`, `setSheet(kind)`, `selectSession(id)`, `toggleFavourite(id)`), `usePlanSet()`, `MOBILE_BREAKPOINT` from `src/state/store.ts`; `Sheet: { open; side: "right" | "bottom"; title; onClose(); children; labelledBy? }`, `Chip: { children; onRemove?; tone? }`, `Avatar: { name; src; size?; hue? }`, `Star: { pressed; onToggle(); size? }` (renders `<button aria-pressed aria-label="Do planu">`) from `src/components/ui/`; `Session`, `Signup`, `Speaker`, `Location` from `src/data/types.ts`; `useData()`.
-- Produces: `DetailSheet()` (named export, no props; the App renders it once in every view), `SpeakerBlock({ speaker: Speaker })` and `SameTimeList({ session: Session })` (named exports, internal to this directory). `SameTimeList` renders `<ul aria-labelledby="same-time-heading">` whose `<li>` rows each hold a `<button aria-label="<title>, <time>, <location>">` sibling to a `Star` (star omitted while `previewPlan` is set), and renders nothing when no session overlaps. `DetailSheet` sets the Sheet's `side` to `"right"` when `window.innerWidth >= MOBILE_BREAKPOINT`, else `"bottom"`, re-evaluated on `resize`; it records `document.activeElement` in a store subscription at the moment `openSheet` becomes `"detail"` (before React moves focus into the dialog) and focuses it again when the sheet closes.
+- Produces: `DetailSheet()` (named export, no props; the App renders it once in every view), `SpeakerBlock({ speaker: Speaker })` and `SameTimeList({ session: Session })` (named exports, internal to this directory). `SpeakerBlock` hands `speaker.photo ?? speaker.photoThumb` to `Avatar`, because the detail panel shows the large photo (spec §7.6); the thumb stays the card and list image. `SameTimeList` renders `<ul aria-labelledby="same-time-heading">` whose `<li>` rows each hold a `<button aria-label="<title>, <time>, <location>">` sibling to a `Star` (star omitted while `previewPlan` is set), and renders nothing when no session overlaps. `DetailSheet` sets the Sheet's `side` to `"right"` when `window.innerWidth >= MOBILE_BREAKPOINT`, else `"bottom"`, re-evaluated on `resize`; it records `document.activeElement` in a store subscription at the moment `openSheet` becomes `"detail"` (before React moves focus into the dialog) and focuses it again when the sheet closes.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -19120,10 +19596,10 @@ const same = makeSession({ id: "3:pt", eventId: 3, title: "Analog dziś", start:
 const after = makeSession({ id: "4:pt", eventId: 4, title: "Film w aparacie", start: 630, end: 690, locationIds: [308], speakerIds: [], signup: included });
 const touching = makeSession({ id: "5:pt", eventId: 5, title: "Druk w domu", start: 660, end: 720, locationIds: [233], speakerIds: [], signup: included });
 const zone = makeSession({ id: "6:pt", eventId: 6, title: "Rejestracja", start: 540, end: 1080, allDay: true, typeIds: [242], locationIds: [318], speakerIds: [], signup: included });
-// Saturday cases: a point session with a byline and a full workshop.
+// Saturday cases: a point session with a byline and a full workshop that ends at 13:00, before the 13:30 point session, so neither lists the other under "W tym samym czasie".
 const point = makeSession({ id: "7:sob", eventId: 7, day: "sob", title: "Ogłoszenie wyników konkursu", start: 810, end: null, typeIds: [242], locationIds: [233], speakerIds: [], byline: "Cyfrowe.pl", signup: included });
 const full = makeSession({
-  id: "8:sob", eventId: 8, day: "sob", title: "Warsztaty Masterclass – Moda na błysk", start: 570, end: 960, typeIds: [5], locationIds: [233], speakerIds: [], byline: null,
+  id: "8:sob", eventId: 8, day: "sob", title: "Warsztaty Masterclass – Moda na błysk", start: 570, end: 780, typeIds: [5], locationIds: [233], speakerIds: [], byline: null,
   signup: { status: "full", url: "https://www.cyfrowe.pl/swiatlosila-warsztaty-masterclass-moda-na-blysk-katarzyna-budziszyna-danaj-p.html", label: "Brak miejsc" },
 });
 
@@ -19163,7 +19639,8 @@ describe("DetailSheet", () => {
     expect(screen.getByText("Prelekcja")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Światło w portrecie" })).toBeTruthy();
     expect(screen.getByText("Piątek, 4 września")).toBeTruthy();
-    expect(screen.getByText("10:00–11:00")).toBeTruthy();
+    // "10:00–11:00" also appears on the same-time row of 3:pt, so more than one match is expected.
+    expect(screen.getAllByText("10:00–11:00").length).toBeGreaterThan(0);
     expect(screen.getByText("1 h")).toBeTruthy();
   });
 
@@ -19314,7 +19791,8 @@ export function SpeakerBlock({ speaker }: Props) {
   return (
     <div className={styles.block}>
       <div className={styles.head}>
-        <Avatar name={speaker.name} src={speaker.photoThumb} size={56} />
+        {/* Spec §7.6: the detail panel shows the large photo; the thumb is only the fallback here. */}
+        <Avatar name={speaker.name} src={speaker.photo ?? speaker.photoThumb} size={56} />
         <div className={styles.text}>
           <div className={styles.name}>{speaker.name}</div>
           {speaker.brands.length > 0 ? <div className={styles.brands}>{speaker.brands.join(" · ")}</div> : null}
@@ -19900,11 +20378,13 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 ### Task 33: Plan view
 
 **Files:**
-- Create: `src/components/plan/PlanView.tsx`, `src/components/plan/PlanView.module.css`
+- Replace the Task 23 placeholder: `src/components/plan/PlanView.tsx`
+- Create: `src/components/plan/PlanView.module.css`
 - Create: `src/components/plan/PlanSummary.tsx`, `src/components/plan/PlanSummary.module.css`
 - Create: `src/components/plan/ConflictsPanel.tsx`, `src/components/plan/ConflictsPanel.module.css`
 - Create: `src/components/plan/PlanActions.tsx`, `src/components/plan/PlanActions.module.css`
-- Create: `src/components/plan/PrintPlan.tsx`, `src/components/plan/PrintPlan.module.css`
+- Replace the Task 23 placeholder: `src/components/plan/PrintPlan.tsx`
+- Create: `src/components/plan/PrintPlan.module.css`
 - Modify: `src/styles/print.css` (replace Task 23's provisional file with the complete print rules below)
 - Modify: `src/App.tsx` (confirm the `PlanView` / `PrintPlan` imports and the single unconditional `<PrintPlan />` from Task 23 step 13; add them if the shell was written without them)
 - Modify: `src/main.tsx` (confirm `import "./styles/print.css";` from Task 23 step 14; add it after `base.css` if absent)
@@ -19913,18 +20393,18 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
 **Interfaces:**
 - Consumes:
   - `src/data/index.tsx` (Task 23 step 3): `useData(): AppData` (`{ data, index, search }`) in every component; in tests `DataProvider({ value, children })` and `buildAppData(data: ScheduleData): AppData`, used through a local `renderWithData(ui)` helper exactly as `src/test/shell.test.tsx` does. The data module is never mocked.
-  - `src/state/store.ts`: `useStore`, `usePlanSet(): ReadonlySet<string>`, `defaultSettings(viewportWidth)`, types `State`, `View`; actions `setSettings(patch)`, `setView(view)`, `clearFilters()`, `savePreview()`, `closePreview()`, `removeFavourite(id)`, `addFavourites(ids)`, `pushToast(text, action?)`, `setCopyText(text)`, `setSheet(kind)`.
+  - `src/state/store.ts`: `useStore`, `usePlanSet(): ReadonlySet<string>`, `defaultSettings(viewportWidth)`, types `State`, `View`; actions `setSettings(patch)`, `setView(view)`, `savePreview()`, `closePreview()`, `removeFavourite(id)`, `addFavourites(ids)`, `pushToast(text, action?)`, `setCopyText(text)`, `setSheet(kind)` (`clearFilters()` is called by `FilteredEmpty`, not by the plan components).
   - `src/state/derive.ts`: `daySets(args): DaySets`, `buildColumns(sets, axis, data, index): Column[]`, `resolveTimeMode(settings, layout): ResolvedTime`, `listGroups(sets, resolved, settings): ListGroup[]`.
   - `src/state/clipboard.ts`: `copyText(text: string): Promise<boolean>`.
   - `src/domain/plan.ts`: `planSessions(planSet, sessions): Session[]`, `planSummary(planSessions, days): PlanSummary` (`perDay` has one entry per day, zero counts included; `conflicts` only days with pairs; `conflictCount`), `nextUp(planSessions, days, now): Session | null`.
   - `src/domain/now.ts`: `nowFor(day, now): number | null`, `minutesUntil(start, nowMinutes): number`.
   - `src/domain/time.ts`: `formatRange(start, end): string`.
   - `src/domain/lookup.ts`: `locationLabel(s, index): string`.
-  - `src/domain/filters.ts`: `activeFilterCount(f): number`, `EMPTY_FILTERS`.
+  - `src/domain/filters.ts`: `EMPTY_FILTERS` (tests only; the `activeFilterCount` check lives inside `FilteredEmpty`).
   - `src/domain/text.ts`: `planLines(sessions, data, index): PlanLinesEntry[]`, `planAsText(sessions, data, index): string`.
   - `src/domain/ics.ts`: `buildIcs(sessions, data, index): string`.
   - `src/domain/share.ts`: `buildShareUrl(href, dayId, ids): string`.
-  - Components: `ScheduleGrid({ sets, columns, resolved, dayId })`, `ScheduleList({ groups })`, `Segmented({ value, options, onChange, ariaLabel })`, `EmptyState({ title, text?, actions?, illustration? })`.
+  - Components: `ScheduleGrid({ sets, columns, resolved, dayId })` and `FilteredEmpty({ text?: string; extraActions?: ReactNode })`, both named exports of `src/components/grid/ScheduleGrid.tsx` (Task 26; `FilteredEmpty` renders the "Brak wydarzeń dla tych filtrów" title, or `text` when given, plus the active-filter chips and the "Wyczyść filtry" button, the last two only when `activeFilterCount(filters) > 0`), `ScheduleList({ groups })`, `Segmented({ value, options, onChange, ariaLabel })`, `EmptyState({ title, text?, actions?, illustration? })`.
   - `lucide-react` icons `Copy`, `Share2`, `Download`, `Printer`.
 - Produces:
   - `PlanView()` (named export, no props) rendered by `App` when `view === "plan"`.
@@ -19932,7 +20412,7 @@ Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2"
   - Internal to `src/components/plan/` (named exports, not used elsewhere): `PlanSummary({ summary: PlanSummary; next: Session | null; now: Date })`, `ConflictsPanel({ conflicts: PlanSummary["conflicts"]; preview: boolean })`, `PlanActions({ plan: Session[]; preview: boolean })`.
   - DOM contract used by the tests: the conflicts panel is a `<section>` named "Konflikty w planie" (role `region`); every removal button has `aria-label="Usuń z planu: <title>"`; the layout toggle is a `radiogroup` named "Układ planu" with radios "Siatka" and "Lista"; the wrapper around the grid/list carries `key` `${day}:${planLayout}:${resolved.mode}` and class `schedule` (Task 34 relies on it for the crossfade).
 
-Empty-state decision tree inside `PlanView` (spec §7.5, §9): `plan` = `planSessions(planSet, data.sessions)` across every day. When `plan.length === 0` the view shows only the "Twój plan jest pusty" state (plus the preview header while previewing). Otherwise the summary, actions and conflicts render, and the schedule area shows the section 9 state "Brak wydarzeń dla tych filtrów" when `sets.visible.length === 0` (nothing of the plan on this day, or nothing passing the filters), with "Wyczyść filtry" only when `activeFilterCount(filters) > 0`; else `ScheduleGrid` or `ScheduleList` by `settings.planLayout`. `ScheduleList` returns `null` for an empty group list (Task 29), so the plan view owns this state itself; the grid's own strip-only state (visible non-empty, rendered empty) stays the grid's job.
+Empty-state decision tree inside `PlanView` (spec §7.5, §9): `plan` = `planSessions(planSet, data.sessions)` across every day. When `plan.length === 0` the view shows only the "Twój plan jest pusty" state (plus the preview header while previewing). Otherwise the summary, actions and conflicts render, and the schedule area renders `FilteredEmpty` from `src/components/grid/ScheduleGrid.tsx` when `sets.visible.length === 0` (nothing of the plan on this day, or nothing passing the filters): the section 9 state "Brak wydarzeń dla tych filtrów" with the active-filter chips and "Wyczyść filtry", both present only when `activeFilterCount(filters) > 0`; else `ScheduleGrid` or `ScheduleList` by `settings.planLayout`. `ScheduleList` returns `null` for an empty group list (Task 29), so the plan view owns this state itself; the grid's own strip-only state (visible non-empty, rendered empty) stays the grid's job.
 
 Steps:
 
@@ -20042,9 +20522,10 @@ describe("PlanView empty states", () => {
     expect(useStore.getState().view).toBe("grid");
   });
 
-  it("uses the section 9 empty state without a clear button when the plan lives on another day", () => {
+  it("uses the section 9 empty state with no chips and no clear button when the plan lives on another day", () => {
     reset({ favourites: [SAT_11] });
     renderWithData(<PlanView />);
+    // No filter is active, so FilteredEmpty renders the title alone: no filter chips and no clear button.
     expect(screen.getByText("Brak wydarzeń dla tych filtrów")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Wyczyść filtry" })).toBeNull();
     expect(screen.queryByText("Twój plan jest pusty")).toBeNull();
@@ -20186,7 +20667,9 @@ describe("PlanActions", () => {
 
   it("falls back to the manual copy sheet when the clipboard is unavailable", async () => {
     const user = userEvent.setup();
-    // jsdom has no navigator.clipboard, so copyText() resolves false.
+    // userEvent.setup() installs a working clipboard stub; drop it so copyText() resolves false.
+    // afterEach deletes the property again, which removes this override as well.
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     reset({ favourites: [FRI_11] });
     renderWithData(<PlanView />);
     await user.click(screen.getByRole("button", { name: "Kopiuj jako tekst" }));
@@ -20261,9 +20744,10 @@ describe("PlanActions", () => {
 describe("PrintPlan", () => {
   const printSection = (): HTMLElement | null => document.body.querySelector("section.print-plan");
 
-  it("is rendered by App in the grid view and in both plan layouts", () => {
+  it("is rendered by App in the grid view, the list view and both plan layouts", () => {
     const cases: { view: View; planLayout: "grid" | "list" }[] = [
       { view: "grid", planLayout: "list" },
+      { view: "list", planLayout: "list" },
       { view: "plan", planLayout: "grid" },
       { view: "plan", planLayout: "list" },
     ];
@@ -20840,11 +21324,10 @@ export function PlanActions({ plan, preview }: PlanActionsProps) {
 ```tsx
 import { useMemo } from "react";
 import { useData } from "../../data/index";
-import { activeFilterCount } from "../../domain/filters";
 import { nextUp, planSessions, planSummary } from "../../domain/plan";
 import { buildColumns, daySets, listGroups, resolveTimeMode } from "../../state/derive";
 import { usePlanSet, useStore, type Settings } from "../../state/store";
-import { ScheduleGrid } from "../grid/ScheduleGrid";
+import { FilteredEmpty, ScheduleGrid } from "../grid/ScheduleGrid";
 import { ScheduleList } from "../list/ScheduleList";
 import { EmptyState } from "../ui/EmptyState";
 import { Segmented } from "../ui/Segmented";
@@ -20870,7 +21353,6 @@ export function PlanView() {
   const preview = useStore((s) => s.previewPlan !== null);
   const setSettings = useStore((s) => s.setSettings);
   const setView = useStore((s) => s.setView);
-  const clearFilters = useStore((s) => s.clearFilters);
   const savePreview = useStore((s) => s.savePreview);
   const closePreview = useStore((s) => s.closePreview);
   const planSet = usePlanSet();
@@ -20888,7 +21370,6 @@ export function PlanView() {
   const groups = useMemo(() => listGroups(sets, resolved, settings), [sets, resolved, settings]);
 
   const layout = settings.planLayout;
-  const activeFilters = activeFilterCount(filters);
 
   return (
     <div className={styles.view} data-preview={preview ? "true" : undefined}>
@@ -20932,17 +21413,8 @@ export function PlanView() {
           <ConflictsPanel conflicts={summary.conflicts} preview={preview} />
           <div key={`${day}:${layout}:${resolved.mode}`} className={styles.schedule}>
             {sets.visible.length === 0 ? (
-              <EmptyState
-                title="Brak wydarzeń dla tych filtrów"
-                text="Tego dnia nie ma w planie nic, co pasuje do aktywnych filtrów."
-                actions={
-                  activeFilters > 0 ? (
-                    <button type="button" className={styles.secondary} onClick={clearFilters}>
-                      Wyczyść filtry
-                    </button>
-                  ) : null
-                }
-              />
+              // Spec §9: the shared empty state with the active-filter chips and "Wyczyść filtry" (both only while a filter is active).
+              <FilteredEmpty />
             ) : layout === "grid" ? (
               <ScheduleGrid sets={sets} columns={columns} resolved={resolved} dayId={day} />
             ) : (
@@ -21104,7 +21576,7 @@ Add the `print.css` line after `base.css` if it is absent.
 
 Run: `npx vitest run src/test/PlanView.test.tsx`
 
-Expected: 19 tests pass (3 empty states, 2 summary, 2 conflicts, 2 preview, 1 layout, 7 actions, 3 print). The `App` cases render inside `renderWithData`, so `App` and every component below it (Tasks 23–32) read the fixture through `useData()`; nothing is mocked. If a case sees the real snapshot instead of the fixture (for example `Sob 1` missing from the summary), some component imports `data`, `index` or `search` from the data module directly; switch it to `const { data, index, search } = useData();` like every other component.
+Expected: 20 tests pass (3 empty states, 2 summary, 2 conflicts, 2 preview, 1 layout, 7 actions, 3 print). The `App` cases render inside `renderWithData`, so `App` and every component below it (Tasks 23–32) read the fixture through `useData()`; nothing is mocked. If a case sees the real snapshot instead of the fixture (for example `Sob 1` missing from the summary), some component imports `data`, `index` or `search` from the data module directly; switch it to `const { data, index, search } = useData();` like every other component.
 
 Run: `cd /Users/tom/Projects/conference-melt && npm run typecheck`
 
@@ -21144,6 +21616,7 @@ EOF
 - Modify: `src/App.module.css` (remove the `.grain` rule, which moves to `Grain.module.css`)
 - Modify: `src/components/list/ScheduleList.tsx` (Task 29: give list rows the entrance stagger the grid bodies already apply), `src/components/list/ScheduleList.module.css` (sticky group header on `--surface-glass` with the `-webkit-` blur prefix)
 - Modify: `src/components/ui/Chip.module.css`, `src/components/shell/DayTabs.module.css`, `src/components/shell/ViewSwitcher.module.css`, `src/components/shell/FilterChips.module.css` (44 px coarse-pointer targets)
+- Modify: `src/components/ui/Popover.module.css` (Task 22), `src/components/shell/Toasts.module.css`, `src/components/shell/TopBar.module.css` (Task 23), `src/components/filters/Facet.module.css`, `src/components/filters/FiltersPanel.module.css` (Task 30), `src/components/detail/SpeakerBlock.module.css`, `src/components/detail/SameTimeList.module.css`, `src/components/detail/DetailSheet.module.css` (Task 32): 44 px coarse-pointer targets on the remaining small controls
 - Modify (only if Step 5 finds a sticky rule without the glass declarations; none is expected): `src/components/grid/TimelineBody.module.css`, `src/components/grid/SlotBody.module.css`
 - Modify: `package.json` (`tokens` script, added to `check`)
 - Test: `src/test/motion.test.tsx`
@@ -21582,7 +22055,287 @@ with
 }
 ```
 
-`Star.module.css`, `Segmented.module.css`, `Toggle.module.css`, `Sheet.module.css`, `Slider.module.css`, `BottomBar.module.css`, `LiveChip.module.css`, `ShareBanner.module.css`, `SessionCard.module.css` (chips), `Strips.module.css` and `ScheduleGrid.module.css` already reserve 44 px (Tasks 22–28); the plan components did so in Task 33.
+In `src/components/ui/Popover.module.css` (Task 22) the close button is 32 px square:
+
+```css
+.close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+```
+
+Append to the end of the file:
+
+```css
+
+@media (pointer: coarse) {
+  .close {
+    width: 44px;
+    height: 44px;
+  }
+}
+```
+
+In `src/components/shell/Toasts.module.css` (Task 23) the action button is 32 px tall and the close button 32 px square:
+
+```css
+.action {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+```
+
+```css
+.close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+```
+
+Append to the end of the file (`min-height` wins over `.action`'s `height`):
+
+```css
+
+@media (pointer: coarse) {
+  .action {
+    min-height: 44px;
+  }
+
+  .close {
+    width: 44px;
+    height: 44px;
+  }
+}
+```
+
+In `src/components/shell/TopBar.module.css` (Task 23) the search field is 36 px tall and its close button 28 px square:
+
+```css
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 260px;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+```
+
+```css
+.inputClose {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+```
+
+Append to the end of the file (the field grows to 44 px so the button fits inside it; the negative margin lets the button reach the field's rounded edge across the 10 px padding):
+
+```css
+
+@media (pointer: coarse) {
+  .search {
+    min-height: 44px;
+  }
+
+  .inputClose {
+    width: 44px;
+    height: 44px;
+    margin-right: -10px;
+  }
+}
+```
+
+In `src/components/filters/Facet.module.css` (Task 30) the per-facet clear button is text-sized:
+
+```css
+.clear {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+```
+
+Replace the block at the end of the file
+
+```css
+@media (pointer: coarse) {
+  .option {
+    min-height: 44px;
+  }
+}
+```
+
+with
+
+```css
+@media (pointer: coarse) {
+  .option {
+    min-height: 44px;
+  }
+
+  .clear {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+}
+```
+
+In `src/components/filters/FiltersPanel.module.css` (Task 30) the global clear button is padded to roughly 30 px:
+
+```css
+.clearAll {
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+```
+
+Append to the end of the file:
+
+```css
+
+@media (pointer: coarse) {
+  .clearAll {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+}
+```
+
+In `src/components/detail/SpeakerBlock.module.css` (Task 32) the bio disclosure is a bare text button:
+
+```css
+.bioToggle {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+```
+
+Append to the end of the file:
+
+```css
+
+@media (pointer: coarse) {
+  .bioToggle {
+    min-height: 44px;
+  }
+}
+```
+
+In `src/components/detail/SameTimeList.module.css` (Task 32) each row's main button is sized by its two lines of text:
+
+```css
+.main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 8px 48px 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+```
+
+Append to the end of the file:
+
+```css
+
+@media (pointer: coarse) {
+  .main {
+    min-height: 44px;
+  }
+}
+```
+
+In `src/components/detail/DetailSheet.module.css` (Task 32) the festival-page link is an inline anchor:
+
+```css
+.source {
+  align-self: flex-start;
+  font-size: 14px;
+  color: var(--accent);
+}
+```
+
+Replace the block at the end of the file
+
+```css
+@media (pointer: coarse) {
+  .signup,
+  .planAdd,
+  .planRemove {
+    min-height: 44px;
+  }
+}
+```
+
+with (`min-height` only applies to a non-inline box, hence `inline-flex`):
+
+```css
+@media (pointer: coarse) {
+  .signup,
+  .planAdd,
+  .planRemove {
+    min-height: 44px;
+  }
+
+  .source {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+```
+
+`Star.module.css`, `Segmented.module.css`, `Toggle.module.css`, `Sheet.module.css`, `Slider.module.css`, `BottomBar.module.css`, `LiveChip.module.css`, `ShareBanner.module.css`, `SessionCard.module.css` (chips), `Strips.module.css` and `ScheduleGrid.module.css` already reserve 44 px (Tasks 22–28); the plan components did so in Task 33; `Facet.module.css` (options) and `DetailSheet.module.css` (signup and plan buttons) already had their coarse blocks from Tasks 30 and 32 and only gain the extra selectors above.
 
 - [ ] **Step 7: Write the token check script and wire it into `npm run check`**
 
@@ -21699,15 +22452,17 @@ Expected: the whole suite is green, including `src/test/PlanView.test.tsx`'s `Ap
 - [ ] **Step 11: Commit**
 
 ```bash
-cd /Users/tom/Projects/conference-melt && git add src/components/shell/Grain.tsx src/components/shell/Grain.module.css scripts/check-tokens.mjs package.json src/App.tsx src/App.module.css src/components/list/ScheduleList.tsx src/components/list/ScheduleList.module.css src/components/ui/Chip.module.css src/components/shell/DayTabs.module.css src/components/shell/ViewSwitcher.module.css src/components/shell/FilterChips.module.css src/test/motion.test.tsx && git commit -F - <<'EOF'
+cd /Users/tom/Projects/conference-melt && git add src/components/shell/Grain.tsx src/components/shell/Grain.module.css scripts/check-tokens.mjs package.json src/App.tsx src/App.module.css src/components/list/ScheduleList.tsx src/components/list/ScheduleList.module.css src/components/ui/Chip.module.css src/components/shell/DayTabs.module.css src/components/shell/ViewSwitcher.module.css src/components/shell/FilterChips.module.css src/components/ui/Popover.module.css src/components/shell/Toasts.module.css src/components/shell/TopBar.module.css src/components/filters/Facet.module.css src/components/filters/FiltersPanel.module.css src/components/detail/SpeakerBlock.module.css src/components/detail/SameTimeList.module.css src/components/detail/DetailSheet.module.css src/test/motion.test.tsx && git commit -F - <<'EOF'
 feat(ui): add grain, list row stagger, coarse targets and a token check
 
 Grain moves to its own tier-aware component; list rows get the same
 12 ms entrance stagger (240 ms cap) the grid bodies already apply and
 the list's sticky headers use the surface-glass token; chips, day tabs,
-view switcher and the filter-chips clear button reserve 44 px on coarse
-pointers; scripts/check-tokens.mjs fails on custom properties missing
-from tokens.css and runs inside npm run check.
+the view switcher, every clear button, the popover, toast and search
+close buttons, the toast action, the bio toggle, same-time rows and the
+festival link reserve 44 px on coarse pointers; scripts/check-tokens.mjs
+fails on custom properties missing from tokens.css and runs inside
+npm run check.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M4QdynGxmwa4dyP5DwVni2
@@ -21848,7 +22603,7 @@ Repeat Step 4 items 1, 3, 5, 6, 9, 11 and 13 in Safari with the same file and `?
 
 - [ ] **Step 6: Manual verification, 900 px (medium tier)**
 
-In Chrome, open the device toolbar and set a responsive width of 900 px. Check: the sidebar is gone and a "Filtry" button with the active count sits in the top bar; it opens the filters as a right drawer; the grid scrolls horizontally inside its own container while the page does not; the day tabs stay in the top bar; the detail sheet is still the right-hand side sheet; the plan view's conflict pairs are still side by side.
+In Chrome, open the device toolbar and set a responsive width of 900 px. Check: the sidebar is gone and a "Filtry" button with the active count sits in the top bar; it opens the filters as a drawer that slides in from the left (spec §7.1); the grid scrolls horizontally inside its own container while the page does not; the day tabs stay in the top bar; the detail sheet is still the right-hand side sheet; the plan view's conflict pairs are still side by side.
 
 - [ ] **Step 7: Manual verification, 390 px (mobile tier)**
 

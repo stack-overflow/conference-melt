@@ -402,10 +402,10 @@ Input: the layout set, the visible set, settings, plan set, now. Output: a scrol
 **Columns.** Determined by `columnAxis`:
 
 - `location`: one column per location with at least one rendered-set session, ordered by `Location.order`. A session with several locations appears in each.
-- `type`: one column per primary type, columns in the priority order below, then remaining types by name with Polish collation. The primary type is the session's first type in this priority order: Prelekcja, Prelekcja z sesją, Warsztaty, Fotospacer, Fotogra, PLAYGROUND, DZIAŁANIA W STREFIE SPRZĘTU, STREFA TELEOBIEKTYWÓW, Ogólne, then any other type by name.
+- `type`: one column per primary type, columns in the priority order below, then remaining types by name with Polish collation, plus a trailing "Bez typu" column when a session has no type. The primary type is the session's first type in this priority order: Prelekcja, Prelekcja z sesją, Warsztaty, Fotospacer, Fotogra, PLAYGROUND, DZIAŁANIA W STREFIE SPRZĘTU, STREFA TELEOBIEKTYWÓW, Ogólne, then any other type by name.
 - `brand`: one column per session's first brand in `brandIds`, columns in `brands` array order, plus a trailing "Bez marki" for sessions with no brand.
 - `level`: one column per location level present, in the `order` sequence, labelled "Poziom 0", "Poziom I", "Poziom I i II", "Poziom II", "Poziom III", and "Inne" for `null`. A session whose locations span several levels appears in each.
-- `none`: a single column holding every rendered-set session.
+- `none`: a single column labelled "Wszystkie" holding every rendered-set session.
 
 Column headers show the label, a count of rendered-set sessions in that column, and for locations the venue as a second line.
 
@@ -592,9 +592,11 @@ conference-melt/
   docs/superpowers/specs/
 ```
 
-Dependencies: `react`, `react-dom`, `zustand`, `lucide-react`. Dev: `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/user-event`, `vite-plugin-singlefile`, `tsx`.
+Dependencies: `react`, `react-dom`, `zustand`, `lucide-react`. Dev: `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`, `@testing-library/user-event`, `@testing-library/jest-dom`, `@types/react`, `@types/react-dom`, `@types/node`, `vite-plugin-singlefile`, `tsx`.
 
-npm scripts: `dev`, `build`, `preview`, `test`, `test:watch`, `typecheck`, `fetch`, `check` (typecheck, test, build, size check).
+Supporting modules not listed in the tree above: `src/domain/lookup.ts` (data index, primary type, location and speaker lookups), `src/domain/colors.ts` (hue assignment), `src/state/{hash,boot,derive,theme,clipboard,clock,useMediaQuery}.ts`, `src/data/index.tsx` (the snapshot plus a React context so tests inject fixtures), `scripts/lib/{api,normalize,validate,fixtures,slot-sets}.ts`, `src/components/ui/{Star,Burst}`, `src/test/setup.ts`, `scripts/check-size.mjs` and `scripts/check-tokens.mjs`.
+
+npm scripts: `dev`, `build`, `preview`, `test`, `test:watch`, `typecheck`, `fetch`, `size`, `tokens` (every `var(--name)` used under `src` must be declared in `tokens.css` or set by a component), `check` (typecheck, tokens, test, build, size check).
 
 ## 12. Acceptance criteria
 
