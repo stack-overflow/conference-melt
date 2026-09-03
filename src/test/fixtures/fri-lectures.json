@@ -1,0 +1,1051 @@
+{
+  "meta": {
+    "source": "https://swiatlosila.pl/harmonogram-2026/",
+    "fetchedAt": "2026-09-03T21:27:22.504Z",
+    "year": 2026,
+    "version": 1,
+    "eventCount": 27,
+    "sessionCount": 27,
+    "speakerCount": 0
+  },
+  "days": [
+    {
+      "id": "pt",
+      "termId": 53,
+      "date": "2026-09-04",
+      "label": "Piątek",
+      "short": "Pt",
+      "labelLong": "Piątek, 4 września"
+    }
+  ],
+  "locations": [
+    {
+      "id": 280,
+      "slug": "w4-poziom-i-sala-wykladowa-nr-5",
+      "name": "W4 - poziom I - Sala wykładowa nr 5",
+      "count": 14,
+      "venue": "W4",
+      "level": "I",
+      "room": "Sala wykładowa nr 5",
+      "short": "Sala wykł. 5",
+      "order": 3
+    },
+    {
+      "id": 279,
+      "slug": "klub-bokserski",
+      "name": "Klub bokserski - poziom II - Sala wykładowa nr 4",
+      "count": 4,
+      "venue": "Klub bokserski",
+      "level": "II",
+      "room": "Sala wykładowa nr 4",
+      "short": "Sala wykł. 4",
+      "order": 6
+    },
+    {
+      "id": 233,
+      "slug": "so-salsa-1",
+      "name": "So Salsa - poziom II - Sala wykładowa nr 1",
+      "count": 16,
+      "venue": "So Salsa",
+      "level": "II",
+      "room": "Sala wykładowa nr 1",
+      "short": "Sala wykł. 1",
+      "order": 8
+    },
+    {
+      "id": 281,
+      "slug": "so-salsa-1-2",
+      "name": "SoSalsa - poziom II - Sala wykładowa nr 2",
+      "count": 16,
+      "venue": "SoSalsa",
+      "level": "II",
+      "room": "Sala wykładowa nr 2",
+      "short": "Sala wykł. 2",
+      "order": 9
+    }
+  ],
+  "types": [
+    {
+      "id": 184,
+      "slug": "prelekcja",
+      "name": "Prelekcja",
+      "count": 51
+    },
+    {
+      "id": 278,
+      "slug": "prelekcja-z-sesja",
+      "name": "Prelekcja z sesją",
+      "count": 5
+    }
+  ],
+  "themes": [],
+  "brands": [],
+  "signupStatuses": [],
+  "speakers": [],
+  "sessions": [
+    {
+      "id": "39517:pt",
+      "eventId": 39517,
+      "day": "pt",
+      "title": "IKIGAI fotografa. Jakie pytania sobie zadawać, by naturalnie bez presji wyróżniać się w morzu fotografii?",
+      "start": 570,
+      "end": 630,
+      "allDay": false,
+      "timeText": "09:30-10:30",
+      "speakerIds": [
+        333
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        245,
+        243,
+        246,
+        244
+      ],
+      "brandIds": [
+        10
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/ikigai-fotografa-jakie-pytania-sobie-zadawac-by-naturalnie-bez-presji-wyrozniac-sie-w-morzu-fotografii/"
+    },
+    {
+      "id": "39551:pt",
+      "eventId": 39551,
+      "day": "pt",
+      "title": "Dlaczego jedni fotografowie zostają w pamięci, a inni tylko robią zdjęcia? O zaufaniu, doświadczeniu i emocjach, które stają się dziś większą przewagą niż perfekcyjne portfolio",
+      "start": 585,
+      "end": 645,
+      "allDay": false,
+      "timeText": "09:45-10:45",
+      "speakerIds": [
+        46644
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        243,
+        145,
+        267
+      ],
+      "brandIds": [
+        294,
+        131
+      ],
+      "locationIds": [
+        279
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/dlaczego-jedni-fotografowie-zostaja-w-pamieci-a-inni-tylko-robia-zdjecia-o-zaufaniu-doswiadczeniu-i-emocjach-ktore-staja-sie-dzis-wieksza-przewaga-niz-perfekcyjne-portfolio/"
+    },
+    {
+      "id": "39552:pt",
+      "eventId": 39552,
+      "day": "pt",
+      "title": "Anatomia obrazu. Od światła do emocji",
+      "start": 575,
+      "end": 655,
+      "allDay": false,
+      "timeText": "09:35-10:55",
+      "speakerIds": [
+        341
+      ],
+      "byline": null,
+      "typeIds": [
+        278
+      ],
+      "themeIds": [
+        262,
+        267,
+        269,
+        275
+      ],
+      "brandIds": [
+        86,
+        85
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/anatomia-obrazu-od-swiatla-do-emocji/"
+    },
+    {
+      "id": "39553:pt",
+      "eventId": 39553,
+      "day": "pt",
+      "title": "W stronę latarni morskich: o świetle w nadzwyczajnych okolicznościach",
+      "start": 670,
+      "end": 730,
+      "allDay": false,
+      "timeText": "11:10-12:10",
+      "speakerIds": [
+        46664
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        249,
+        149,
+        257,
+        115
+      ],
+      "brandIds": [
+        114
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/wkrotce/"
+    },
+    {
+      "id": "39554:pt",
+      "eventId": 39554,
+      "day": "pt",
+      "title": "Najważniejsze zdjęcia ślubne nie pokazują ślubu!",
+      "start": 600,
+      "end": 660,
+      "allDay": false,
+      "timeText": "10:00-11:00",
+      "speakerIds": [
+        46691
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        84,
+        115
+      ],
+      "brandIds": [
+        124
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/najwazniejsze-zdjecia-slubne-nie-pokazuja-slubu/"
+    },
+    {
+      "id": "39555:pt",
+      "eventId": 39555,
+      "day": "pt",
+      "title": "Natura nie powtarza ujęć. O pracy fotografa krajobrazowego",
+      "start": 645,
+      "end": 705,
+      "allDay": false,
+      "timeText": "10:45-11:45",
+      "speakerIds": [
+        46694
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        81,
+        260,
+        263,
+        246
+      ],
+      "brandIds": [
+        148
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/natura-nie-powtarza-ujec-o-pracy-fotografa-krajobrazowego/"
+    },
+    {
+      "id": "39556:pt",
+      "eventId": 39556,
+      "day": "pt",
+      "title": "Światło, które widzisz. Oświetlenie LED w fotografii kreatywnej",
+      "start": 660,
+      "end": 720,
+      "allDay": false,
+      "timeText": "11:00-12:00",
+      "speakerIds": [
+        379
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        262,
+        267,
+        275
+      ],
+      "brandIds": [
+        108,
+        109
+      ],
+      "locationIds": [
+        279
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/swiatlo-ktore-widzisz-oswietlenie-led-w-fotografii-kreatywnej/"
+    },
+    {
+      "id": "39558:pt",
+      "eventId": 39558,
+      "day": "pt",
+      "title": "Świadomy reset. Jak odzyskać kreatywność?",
+      "start": 675,
+      "end": 735,
+      "allDay": false,
+      "timeText": "11:15-12:15",
+      "speakerIds": [
+        46608
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        253,
+        243,
+        267,
+        244
+      ],
+      "brandIds": [
+        127,
+        196
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/swiadomy-reset-jak-odzyskac-kreatywnosc/"
+    },
+    {
+      "id": "39559:pt",
+      "eventId": 39559,
+      "day": "pt",
+      "title": "Fotografia umarła. Znowu",
+      "start": 720,
+      "end": 780,
+      "allDay": false,
+      "timeText": "12:00-13:00",
+      "speakerIds": [
+        46661
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        249,
+        257,
+        265
+      ],
+      "brandIds": [
+        190,
+        124
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/sila-obrazu/"
+    },
+    {
+      "id": "39560:pt",
+      "eventId": 39560,
+      "day": "pt",
+      "title": "Modelka czy kreator? Jak dziś tworzyć content",
+      "start": 730,
+      "end": 790,
+      "allDay": false,
+      "timeText": "12:10-13:10",
+      "speakerIds": [
+        46598
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        200,
+        243,
+        145,
+        268
+      ],
+      "brandIds": [
+        190
+      ],
+      "locationIds": [
+        279
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/modelka-czy-kreator-jak-dzis-tworzyc-content/"
+    },
+    {
+      "id": "39561:pt",
+      "eventId": 39561,
+      "day": "pt",
+      "title": "Malowanie światłem. Kreatywne wykorzystanie koloru w fotografii portretowej",
+      "start": 740,
+      "end": 800,
+      "allDay": false,
+      "timeText": "12:20-13:20",
+      "speakerIds": [
+        46657
+      ],
+      "byline": null,
+      "typeIds": [
+        278
+      ],
+      "themeIds": [
+        258,
+        267,
+        269,
+        275
+      ],
+      "brandIds": [
+        122
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/malowanie-swiatlem-kreatywne-wykorzystanie-koloru-w-fotografii-portretowej/"
+    },
+    {
+      "id": "39562:pt",
+      "eventId": 39562,
+      "day": "pt",
+      "title": "Co łączy zawodnika przed walką i parę przed ślubem? Jak fotografować emocje, których nie da się wyreżyserować",
+      "start": 750,
+      "end": 810,
+      "allDay": false,
+      "timeText": "12:30-13:30",
+      "speakerIds": [
+        46585
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        84,
+        115
+      ],
+      "brandIds": [
+        12
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/co-laczy-zawodnika-przed-walka-i-pare-przed-slubem-jak-fotografowac-emocje-ktorych-nie-da-sie-wyrezyserowac/"
+    },
+    {
+      "id": "39564:pt",
+      "eventId": 39564,
+      "day": "pt",
+      "title": "Fotografia sportowa od A do Z. Od planowania kadru do gotowego zdjęcia",
+      "start": 800,
+      "end": 860,
+      "allDay": false,
+      "timeText": "13:20-14:20",
+      "speakerIds": [
+        369
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        101,
+        274
+      ],
+      "brandIds": [
+        150
+      ],
+      "locationIds": [
+        279
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/fotografia-sportowa-od-a-do-z-od-planowania-kadru-do-gotowego-zdjecia/"
+    },
+    {
+      "id": "39567:pt",
+      "eventId": 39567,
+      "day": "pt",
+      "title": "Jak podbić świat konkursów fotograficznych? Spojrzenie z obydwu stron – uczestnika i jurora",
+      "start": 830,
+      "end": 890,
+      "allDay": false,
+      "timeText": "13:50-14:50",
+      "speakerIds": [
+        46640
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        253,
+        262,
+        267,
+        269
+      ],
+      "brandIds": [
+        11
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/jak-podbic-swiat-konkursow-fotograficznych-spojrzenie-z-obydwu-stron-uczestnika-i-jurora/"
+    },
+    {
+      "id": "39568:pt",
+      "eventId": 39568,
+      "day": "pt",
+      "title": "Prosty przepis na porażkę w fotografii przyrodniczej",
+      "start": 870,
+      "end": 930,
+      "allDay": false,
+      "timeText": "14:30-15:30",
+      "speakerIds": [
+        478
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        81,
+        263,
+        246
+      ],
+      "brandIds": [
+        296,
+        82,
+        119
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/prosty-przepis-na-porazke-w-fotografii-przyrodniczej/"
+    },
+    {
+      "id": "39569:pt",
+      "eventId": 39569,
+      "day": "pt",
+      "title": "Strategia Social Media dla fotografów ślubnych",
+      "start": 900,
+      "end": 960,
+      "allDay": false,
+      "timeText": "15:00-16:00",
+      "speakerIds": [
+        371
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        200,
+        84,
+        243,
+        145
+      ],
+      "brandIds": [
+        11
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/strategia-social-media-dla-fotografow-slubnych/"
+    },
+    {
+      "id": "39571:pt",
+      "eventId": 39571,
+      "day": "pt",
+      "title": "Stocznia – dokument utraty",
+      "start": 915,
+      "end": 975,
+      "allDay": false,
+      "timeText": "15:15-16:15",
+      "speakerIds": [
+        46689
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        249,
+        257,
+        115,
+        271
+      ],
+      "brandIds": [
+        190
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/stocznia-dokument-utraty/"
+    },
+    {
+      "id": "39572:pt",
+      "eventId": 39572,
+      "day": "pt",
+      "title": "Etyka w fotografii kobiecej. Granice, zgoda i bezpieczeństwo jako część premium usługi",
+      "start": 945,
+      "end": 1005,
+      "allDay": false,
+      "timeText": "15:45-16:45",
+      "speakerIds": [
+        46587
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        253,
+        145,
+        262,
+        267
+      ],
+      "brandIds": [
+        190
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/etyka-w-fotografii-kobiecej-granice-zgoda-i-bezpieczenstwo-jako-czesc-premium-uslugi/"
+    },
+    {
+      "id": "39573:pt",
+      "eventId": 39573,
+      "day": "pt",
+      "title": "Czarno to widzę! Czyli dlaczego wyłączyłem kolor w fotografii ulicznej?",
+      "start": 975,
+      "end": 1035,
+      "allDay": false,
+      "timeText": "16:15-17:15",
+      "speakerIds": [
+        46602
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        115,
+        272
+      ],
+      "brandIds": [
+        106
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/czarno-to-widze-czyli-dlaczego-wylaczylem-kolor-w-fotografii-ulicznej/"
+    },
+    {
+      "id": "39574:pt",
+      "eventId": 39574,
+      "day": "pt",
+      "title": "Kadr na krawędzi. Moja fotograficzna podróż od Tatr po Dakar",
+      "start": 990,
+      "end": 1050,
+      "allDay": false,
+      "timeText": "16:30-17:30",
+      "speakerIds": [
+        46591
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        255,
+        101,
+        246
+      ],
+      "brandIds": [
+        10
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/kadr-na-krawedzi-moja-fotograficzna-podroz-od-tatr-po-dakar/"
+    },
+    {
+      "id": "39581:pt",
+      "eventId": 39581,
+      "day": "pt",
+      "title": "Fotograficzna kuchnia pełna czarów",
+      "start": 1020,
+      "end": 1080,
+      "allDay": false,
+      "timeText": "17:00-18:00",
+      "speakerIds": [
+        46696
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        81,
+        88,
+        263
+      ],
+      "brandIds": [
+        127,
+        294,
+        131
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/fotograficzna-kuchnia-pelna-czarow/"
+    },
+    {
+      "id": "39583:pt",
+      "eventId": 39583,
+      "day": "pt",
+      "title": "Od satelitarnego obrazu do fotografowania prehistorii w krainie neolitycznych łowców",
+      "start": 1050,
+      "end": 1110,
+      "allDay": false,
+      "timeText": "17:30-18:30",
+      "speakerIds": [
+        46651
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        249,
+        257,
+        115
+      ],
+      "brandIds": [
+        114
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/od-satelitarnego-obrazu-do-fotografowania-prehistorii-w-krainie-neolitycznych-lowcow/"
+    },
+    {
+      "id": "39584:pt",
+      "eventId": 39584,
+      "day": "pt",
+      "title": "Marketing fotograficzny. Jak to ugryźć?",
+      "start": 1065,
+      "end": 1125,
+      "allDay": false,
+      "timeText": "17:45-18:45",
+      "speakerIds": [
+        46678
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        253,
+        84,
+        145,
+        267
+      ],
+      "brandIds": [
+        190
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/marketing-fotograficzny-jak-to-ugryzc/"
+    },
+    {
+      "id": "39585:pt",
+      "eventId": 39585,
+      "day": "pt",
+      "title": "Nie tylko tło. O sile scenografii i rekwizytu w obrazie, który zostaje w pamięci",
+      "start": 1095,
+      "end": 1155,
+      "allDay": false,
+      "timeText": "18:15-19:15",
+      "speakerIds": [
+        46594
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        145,
+        262,
+        269,
+        301
+      ],
+      "brandIds": [
+        190
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/wkrotce-3/"
+    },
+    {
+      "id": "39586:pt",
+      "eventId": 39586,
+      "day": "pt",
+      "title": "Cinematic reels. Jak realizować profesjonalne rolki?",
+      "start": 1120,
+      "end": 1180,
+      "allDay": false,
+      "timeText": "18:40-19:40",
+      "speakerIds": [
+        46674
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        200,
+        250,
+        270
+      ],
+      "brandIds": [
+        11
+      ],
+      "locationIds": [
+        233
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/cinematic-reels-jak-realizowac-profesjonalne-rolki/"
+    },
+    {
+      "id": "39845:pt",
+      "eventId": 39845,
+      "day": "pt",
+      "title": "Foto, video i marka osobista. Canon R6V – nowości w praktyce",
+      "start": 825,
+      "end": 885,
+      "allDay": false,
+      "timeText": "13:45-14:45",
+      "speakerIds": [
+        46621
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        200,
+        243,
+        145,
+        264
+      ],
+      "brandIds": [
+        10
+      ],
+      "locationIds": [
+        280
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/foto-video-i-marka-osobista-canon-r6v-nowosci-w-praktyce-2/"
+    },
+    {
+      "id": "41186:pt",
+      "eventId": 41186,
+      "day": "pt",
+      "title": "Cyfrowa nostalgia. Kadr z drugiej ręki",
+      "start": 820,
+      "end": 855,
+      "allDay": false,
+      "timeText": "13:40-14:15",
+      "speakerIds": [
+        46617,
+        46614
+      ],
+      "byline": null,
+      "typeIds": [
+        184
+      ],
+      "themeIds": [
+        145,
+        295
+      ],
+      "brandIds": [
+        277
+      ],
+      "locationIds": [
+        281
+      ],
+      "signup": {
+        "status": "included",
+        "url": null,
+        "label": "W ramach festiwalu"
+      },
+      "descriptionHtml": "",
+      "url": "https://swiatlosila.pl/cyfrowe-event/cyfrowa-nostalgia-kadr-z-drugiej-reki/"
+    }
+  ]
+}
