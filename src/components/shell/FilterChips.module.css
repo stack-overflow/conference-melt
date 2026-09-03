@@ -1,0 +1,41 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.row::-webkit-scrollbar {
+  display: none;
+}
+
+.clear {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.clear:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+@media (max-width: 699.98px) {
+  .row {
+    padding: 8px 12px;
+  }
+}
+
+@media (pointer: coarse) {
+  .clear {
+    min-height: 36px;
+  }
+}

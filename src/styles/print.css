@@ -1,0 +1,29 @@
+@media print {
+  body > * {
+    display: none !important;
+  }
+
+  .print-plan {
+    display: block !important;
+    color: #000;
+    background: #fff;
+    font: 12pt/1.4 Georgia, "Times New Roman", serif;
+  }
+
+  .print-plan h2 {
+    margin: 16pt 0 6pt;
+    font-size: 14pt;
+    page-break-after: avoid;
+  }
+
+  .print-plan ul {
+    margin: 0;
+    padding-left: 16pt;
+  }
+}
+
+@media screen {
+  .print-plan {
+    display: none;
+  }
+}
