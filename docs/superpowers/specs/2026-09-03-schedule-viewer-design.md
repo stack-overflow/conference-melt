@@ -129,7 +129,7 @@ Slug precedes both fallbacks because event 46769 carries a correct slug with a w
 
 `order` sorts by level (`0`, `I`, `I+II`, `II`, `III`, `null`) then by name with Polish collation. The `locations` array is written in `order` order.
 
-**Speakers.** `name` is the post title with entities decoded. `photo` is the `large` size URL if present, else `full`; `photoThumb` is `medium`, else `thumbnail`, else `photo`. Missing image gives `null` for both. `url` is the post's `link`. `bioHtml` is the sanitized content (blank paragraphs, including whitespace-only ones such as the `<p> </p>` in speaker 46683, already removed by section 4.3) with every remaining paragraph whose decoded text matches `/^\s*[-–—][\s\-–—]*$/` replaced by `<hr>`; on the 2026-09-03 data this affects 22 paragraphs across 9 speakers. `brands` are the names of the speaker's `cyfrowe-prelegent-type` terms, excluding `Prelegent`.
+**Speakers.** `name` is the post title with entities decoded. `photo` is the `large` size URL if present, else `full`; `photoThumb` is `medium`, else `thumbnail`, else `photo`. Missing image gives `null` for both. `url` is the post's `link`. `bioHtml` is the sanitized content (blank paragraphs, including whitespace-only ones such as the `<p> </p>` in speaker 46683, already removed by section 4.3) with every remaining paragraph whose decoded text matches `/^\s*[-–—][\s\-–—]*$/` replaced by `<hr>`; on the 2026-09-03 data this affects 22 paragraphs across 8 speakers. `brands` are the names of the speaker's `cyfrowe-prelegent-type` terms, excluding `Prelegent`.
 
 **Terms.** `types`, `themes`, `brands`, `signupStatuses` include only terms with `count > 0`, sorted by name with Polish collation.
 
@@ -391,7 +391,7 @@ interface State {
 
 In the plan view the day's sessions are first intersected with the plan set (`previewPlan ?? favourites`) and both sets are built from that intersection, so columns, strips, header counts, list rows and empty states see plan sessions only; the list view (7.4) inherits this because its groups and rows come from the same two sets.
 
-The timeline range, `detectSlots`, `slotRegularity`, `packLanes`, `spanAllowed`, column widths and the now line are computed from the layout set. Cards are rendered for sessions in both sets; call that intersection the *rendered set*. Typing in the search box or toggling "Tylko ulubione" therefore never changes the time mode, the rail, the row set, the vertical scale, lane widths or spanning decisions: non-matching cards leave with the exit animation and matching cards stay exactly where they were. Under every axis a column exists only when it holds at least one rendered-set session, so a search still narrows the grid to columns with results, and a location, type, brand or level whose sessions all sit in a strip gets no column while `allDayStrip` is on.
+The timeline range, `detectSlots`, `slotRegularity`, `packLanes`, `spanAllowed`, column widths and the now line are computed from the layout set. Cards are rendered for sessions in both sets; call that intersection the *rendered set*. Typing in the search box or toggling "Tylko ulubione" therefore never changes the time mode, the rail, the row set, the vertical scale, lane widths or spanning decisions: non-matching cards unmount and matching cards stay exactly where they were. Under every axis a column exists only when it holds at least one rendered-set session, so a search still narrows the grid to columns with results, and a location, type, brand or level whose sessions all sit in a strip gets no column while `allDayStrip` is on.
 
 The scroll container renders only when the rendered set is non-empty. Otherwise the strips still render when they have content, and the empty state (section 9) takes the scroll container's place: no range, rail, columns, wrappers or now line exist and the "Teraz" chip is a no-op. `detectSlots` and `slotRegularity` are still evaluated (they are pure) so the resolved time mode stays defined for the settings readout and the list view.
 
@@ -496,7 +496,7 @@ A popover at 700 px and up, a bottom sheet below. Segmented controls and sliders
 - A soft radial orange glow behind the top bar, 30 % opacity dark, 12 % light.
 - A fixed full-page SVG `feTurbulence` grain at 4 % opacity, `pointer-events: none`, skipped under 700 px for performance.
 - Sticky headers use `backdrop-filter: blur(12px)` over a semi-transparent surface.
-- Card entrance on day or filter change: opacity and 6 px translate, 180 ms, staggered 12 ms per card up to 240 ms total; exit is the reverse over 120 ms.
+- Card entrance on day or filter change: opacity and 6 px translate, 180 ms, staggered 12 ms per card up to 240 ms total. Cards that leave unmount immediately; the container crossfade below covers mode and day changes.
 - Star toggle scales 1 → 1.3 → 1 over 250 ms with a spring-like cubic-bezier.
 - Live cards pulse their outline over 2 s.
 - Day and view switches, and a change of the resolved time mode caused by a day, facet, tolerance or time-mode change, crossfade the grid over 160 ms.
