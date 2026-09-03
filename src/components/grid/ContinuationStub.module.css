@@ -1,0 +1,43 @@
+.stub {
+  --card-h: 0;
+  --card-c: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  padding: 2px 8px 2px 12px;
+  overflow: hidden;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+  background: color-mix(in oklch, var(--surface-1) 60%, transparent);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stub::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: oklch(var(--hue-l) var(--card-c) var(--card-h));
+  opacity: 0.7;
+}
+
+.stub:hover {
+  color: var(--text);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.until {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
