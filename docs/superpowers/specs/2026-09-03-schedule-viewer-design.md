@@ -1,7 +1,7 @@
 # ŚwiatłoSiła 2026 schedule viewer: design spec
 
 Date: 2026-09-03
-Status: approved in brainstorming, pending user review of this document
+Status: approved in brainstorming, revised after adversarial review, pending user review of this document
 
 ## 1. Goal
 
@@ -19,6 +19,8 @@ Everything runs client-side. There is no server, no accounts, no analytics.
 
 - Live sync with the festival site at runtime. The data is a snapshot refreshed by a script.
 - Drag-to-reorder columns. Columns are hidden through the location filter instead.
+- A collapsible sidebar. On wide screens the sidebar is always visible.
+- Browser Back traversing day or view changes. The hash makes links and bookmarks work; Back leaves the app.
 - Playwright end-to-end tests. Verification is Vitest plus manual checks on desktop and a mobile viewport.
 - Downloading speaker photos. They are hotlinked from swiatlosila.pl.
 
@@ -26,19 +28,22 @@ Everything runs client-side. There is no server, no accounts, no analytics.
 
 Gathered on 2026-09-03 from the WordPress REST API, which returns the same 153 events the page renders through its AJAX filter plugin.
 
-- Post type `cyfrowe-event`, 153 published events. Taxonomies: `cyfrowe-event-type` (16 terms, 9 in use), `cyfrowe-event-theme` (80 terms), `cyfrowe-event-brand` (65 terms), `cyfrowe-event-location` (26 terms), `cyfrowe-event-day` (5 terms, 3 in use: Thursday 3 Sep with 1 event, Friday 4 Sep with 82, Saturday 5 Sep with 80), `cyfrowe-event-zapisy` (5 terms).
-- Ten events carry both Friday and Saturday, so Friday and Saturday counts overlap and the sum of day counts (163) exceeds the event count (153).
-- The time is not a structured field. It is the start of the first paragraph of the content, in the form `HH:MM-HH:MM` (150 events) or a lone `HH:MM` (3 point events: opening 09:30 Friday, results 13:30 Friday, closing 19:30 Saturday). Hyphen may be `-`, `–` or `—`.
-- After the time, the first paragraph holds a comma, then speaker links (`<a href="https://swiatlosila.pl/cyfrowe-prelegent/<slug>/">Surname Firstname</a>`, several separated by ` / `) or plain text such as a brand name, then optionally a signup link to cyfrowe.pl whose text is `Zapisz się` or `Brak miejsc`.
-- Post type `cyfrowe-prelegent`, 120 speakers, 119 with a square featured image (sizes thumbnail 150, medium 300, large 1024, full). Content is a bio followed by talk descriptions separated by paragraphs of dashes. Speakers do not link back to events.
-- Start times are staggered across rooms (09:30, 09:35, 09:45, 10:00) and the lecture rooms run a 75-minute cadence offset from one another. Equipment-zone activities start every 15 to 30 minutes throughout the day.
+- Post type `cyfrowe-event`, 153 published events. Taxonomies: `cyfrowe-event-type` (16 terms, 9 in use), `cyfrowe-event-theme` (80 terms), `cyfrowe-event-brand` (65 terms), `cyfrowe-event-location` (26 terms, 20 in use), `cyfrowe-event-day` (5 terms, 3 in use: Thursday 3 Sep with 1 event, Friday 4 Sep with 82, Saturday 5 Sep with 80), `cyfrowe-event-zapisy` (5 terms).
+- Ten events carry both Friday and Saturday, so Friday and Saturday counts overlap and the sum of day counts (163) exceeds the event count (153). 163 is the session count.
+- The time is not a structured field. It is the start of the first non-empty paragraph of the content, in the form `HH:MM-HH:MM` (150 events) or a lone `HH:MM` (3 point events: opening 09:30 Friday, results 13:30 Friday, closing 19:30 Saturday). The hyphen may be `-`, `–` or `—`.
+- After the time, 141 events have a comma, then speaker links (`<a href="https://swiatlosila.pl/cyfrowe-prelegent/<slug>/">Surname Firstname</a>`, several usually separated by ` / `, once by a bare space) or plain text such as a brand name; 17 events then carry a signup link to www.cyfrowe.pl whose text is `Zapisz się`, `Brak miejsc` or `Brak Miejsc`; 12 events have nothing after the time. The link text can contradict the `cyfrowe-event-zapisy` term (event 41152), and the page displays the term, so status comes from the term and the URL from the anchor host, never from the text.
+- 147 speaker anchors exist. 137 carry a slug that matches a speaker record. Nine carry stale slugs (`jimmy-salatka` in seven events, `zenon-wujtaszek` in two) whose anchor text names an existing speaker, and one (event 41154) links to the event's own page with the speaker's name as text. One anchor (event 46769) has a correct slug but a `data-id` pointing at a different speaker.
+- 36 of 153 titles contain HTML entities such as `&#8211;` or `&amp;`.
+- Post type `cyfrowe-prelegent`, 120 speakers, 119 with a near-square featured image (speaker 46704 has none). Every image has `thumbnail` 150 and `medium` 300; `large` 1024 exists for 57 speakers, the other 62 top out at `full` (about 600 px). Content is a bio followed by talk descriptions separated by paragraphs made of dashes (runs of `&#8212;`, sometimes ending in `&#8211;` or `-`). Speakers do not link back to events.
+- 18 events run 300 minutes or longer: ten are zones typed `Ogólne` (registration, equipment zone, shop, exhibition, food truck, running 09:00 to 18:00 on both days), eight are paid `Warsztaty` masterclasses with `Zapisy` or `Brak miejsc` status.
+- Start times are staggered across rooms (09:30, 09:35, 09:45, 10:00) and the lecture rooms run a 75-minute cadence offset from one another. Equipment-zone activities start every 15 to 30 minutes throughout the day. On the unfiltered Friday, up to 13 sessions run at once (14:00).
 - Brand identity: black ground, vivid orange burst logo (`#ff6600` in the theme CSS), accent pink `#fd62c9` and yellow `#ffd101`, fonts Bricolage Grotesque and Inter.
 
 ## 4. Data pipeline
 
 ### 4.1 Fetch script
 
-`scripts/fetch-schedule.ts`, run with `npm run fetch` (`tsx`). Node 20 or newer, native `fetch`, no runtime dependencies beyond `tsx`.
+`scripts/fetch-schedule.ts`, run with `npm run fetch` (`tsx`). Node 20 or newer, native `fetch`, no runtime dependencies beyond `tsx`. The script imports `normalizeText` from `src/domain/normalize.ts` so the fetch script and the app share one text-folding rule.
 
 Steps:
 
@@ -46,42 +51,84 @@ Steps:
 2. Fetch the six event taxonomies with `per_page=100`, plus `cyfrowe-prelegent-type`.
 3. Fetch all pages of `/wp-json/wp/v2/cyfrowe-prelegent?per_page=100&page=N&_embed=1` for photos.
 4. Normalize (section 4.2) and validate (section 4.4).
-5. Write `src/data/schedule.json`, pretty-printed with two spaces, object keys in a fixed order and arrays sorted by id, so re-runs produce minimal diffs.
-6. Print a summary: counts per day, sessions without a parseable time, speaker links that did not resolve, locations that did not match the parsing rules.
+5. Write `src/data/schedule.json`, pretty-printed with two spaces, object keys in a fixed order, and every array in the deterministic order defined in section 4.2: `days` by `date`; `locations` by `order`; `types`, `themes`, `brands`, `signupStatuses` by `name` with Polish collation (`new Intl.Collator("pl").compare`), ties by `id`; `speakers` by `id`; `sessions` by `eventId`, then by the position of their day in `days`. Re-runs then produce minimal diffs.
+6. Print a summary: counts per day, then every warning defined in section 4.4.
 
 The script sets a browser-like `User-Agent`. On any network error or non-2xx response it exits non-zero and writes nothing. It never writes a partial file.
 
 ### 4.2 Normalization rules
 
-**Days.** Only day terms with `count > 0`. Name matches `/(Czwartek|Piątek|Sobota|Niedziela|Poniedziałek|Wtorek|Środa)\s*\((\d{1,2})\s+(\S+)\)/`. Month name maps Polish genitive names to numbers (września = 9). Year comes from the script constant `YEAR = 2026`. Day id is the weekday's short code: `czw`, `pt`, `sob`, `nd`, `pon`, `wt`, `sr`. Days are sorted by date.
+**Days.** Only day terms with `count > 0`. The name matches `/(Czwartek|Piątek|Sobota|Niedziela|Poniedziałek|Wtorek|Środa)\s*\((\d{1,2})\s+(\S+)\)/`. The month name maps Polish genitive names to numbers (września = 9). The year comes from the script constant `YEAR = 2026`. Day id is the weekday's short code: `czw`, `pt`, `sob`, `nd`, `pon`, `wt`, `sr`. `label` is capture group 1; `short` comes from the map Czwartek→Czw, Piątek→Pt, Sobota→Sob, Niedziela→Nd, Poniedziałek→Pon, Wtorek→Wt, Środa→Śr; `labelLong` is `"<label>, <group 2> <group 3>"`. The raw term name (`⏱️ Piątek (4 września)`) is never displayed. Days are sorted by date.
 
-**Sessions.** One session per (event, day). `id = "<eventId>:<dayId>"`. Sessions of the same event share `eventId`.
+**Sessions.** One session per (event, day). `id = "<eventId>:<dayId>"`. Sessions of the same event share `eventId`. `title` is `title.rendered` with entities decoded. `url` is the post's `link`.
 
-**Time.** From the text of the first non-empty paragraph, after stripping tags and decoding entities:
+**Time.** From the text of the first non-empty paragraph (a `<p>` whose stripped, decoded text is not blank), after stripping tags and decoding entities:
 
 ```
 /^\s*(\d{1,2})[:.](\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?/
 ```
 
-`start` and `end` are minutes since midnight. Hours must be 0 to 23 and minutes 0 to 59, otherwise the time is treated as unparseable. If `end <= start` the end is discarded and the session is reported. No match gives `start = null, end = null`. The matched text is kept verbatim in `timeText`.
+`start` and `end` are minutes since midnight. Hours must be 0 to 23 and minutes 0 to 59, otherwise the time is treated as unparseable. If `end <= start` the end is discarded and the session is reported. No match gives `start = null, end = null, timeText = ""`. Otherwise the matched text is kept verbatim in `timeText`.
 
-**Speakers on a session.** Every anchor in the first paragraph whose `href` matches `/cyfrowe-prelegent\/([^/]+)\/?$/` resolves by slug to a speaker record. Unresolved slugs are reported and the anchor text is kept in the byline instead.
+**Speakers on a session.** A speaker anchor is any anchor in the first paragraph whose `href` host is swiatlosila.pl (cyfrowe.pl anchors are signup links). Each resolves to a speaker record by the first tier that succeeds:
 
-**Byline.** The first paragraph text with the time match removed, the signup anchor text removed, speaker anchor texts removed, then trimmed of leading commas, slashes and whitespace. Empty becomes `null`. Example: `17:00-19:00, Sony Zapisz się` gives `"Sony"`.
+1. Slug: `/cyfrowe-prelegent\/([^/]+)\/?$/` on `href`, looked up by speaker slug.
+2. Name: `nameKey(s)` = decode entities, apply `normalizeText` (section 5.4), split into word tokens (`/\p{L}+|\p{N}+/gu`) as a set. Accept the single speaker whose token set equals the anchor's token set. If there is none and the anchor has at least two tokens, accept the single speaker whose token set contains every anchor token. Zero or several candidates fail this tier. Anchor text is "Surname Firstname" while speaker names are "Firstname Surname", hence set comparison.
+3. `data-id`: when the anchor has `data-type="cyfrowe-prelegent"` and a numeric `data-id`, look up by speaker id.
 
-**Signup.** Status from the `cyfrowe-event-zapisy` term: `Zapisy` → `open`, `Brak miejsc` → `full`, `W ramach festiwalu` → `included`, `WSTĘP WOLNY` → `free`, `Zapisy wkrótce` → `soon`, none → `unknown`. `url` is the `href` of the first anchor in the first paragraph whose host is not swiatlosila.pl, else `null`. `label` is the term name or `"Brak informacji"`.
+Slug precedes both fallbacks because event 46769 carries a correct slug with a wrong `data-id`. Name precedes `data-id` because the anchor text is what editors see, while `data-id` is hidden and already wrong once in this data. Anchors still unresolved are reported and their text stays in the byline. On the 2026-09-03 data all 147 anchors resolve: 137 by slug, 10 by name (`jimmy-salatka` → Emil Biliński in seven events, `zenon-wujtaszek` → Karol Bartnik in events 39590 and 46540, event 41154 → Filip Blank); the `data-id` tier is unused today.
 
-**Description.** All paragraphs after the first, sanitized (section 4.3). Usually empty.
+**Byline.** The first paragraph text with the time match removed, the signup anchor text removed (the signup anchor is the first anchor whose `href` host is not swiatlosila.pl, the same anchor that supplies `signup.url`, regardless of its text), speaker anchor texts removed, then trimmed of commas, slashes and whitespace at both ends, with internal runs of whitespace collapsed to one space. Empty becomes `null`. Examples: `17:00-19:00, Sony <a cyfrowe.pl>Zapisz się</a>` → `"Sony"`; `16:00-18:00, <a prelegent>Wąs Mateusz MUSTACHE LENS</a> <a cyfrowe.pl>Brak Miejsc</a>` → `null`; `13:30, Cyfrowe.pl` → `"Cyfrowe.pl"`.
 
-**Locations.** Each term is parsed with, in order:
+**Signup.** Status from the `cyfrowe-event-zapisy` term: `Zapisy` → `open`, `Brak miejsc` → `full`, `W ramach festiwalu` → `included`, `WSTĘP WOLNY` → `free`, `Zapisy wkrótce` → `soon`, none → `unknown`. `url` is the `href` of the signup anchor defined above, else `null`. `label` is the term name or `"Brak informacji"`.
 
-1. `/^(.*?)\s*-\s*poziom\s*(0|I|II|III)\s*-\s*(.*)$/i` → venue, level, room.
-2. `/^(.*?)\s*-\s*(Sala .*)$/` → venue, room, level `null`.
-3. Otherwise venue is the full name, room `null`. If the name contains `poziom I` and `poziom II` the level is `"I+II"`, else a single `poziom X` sets the level.
+**All-day.** `allDay` is `true` when `end != null`, `end - start >= 300`, and `typeIds` contains the type term with slug `ogolne` in any position; otherwise `false`. On the 2026-09-03 data this marks the 20 zone sessions (ten dual-day events) and none of the eight `Warsztaty` sessions of 300 minutes or more.
 
-`short` comes from an override map in the script keyed by term slug, covering all 26 current terms (for example `so-salsa-1` → `Sala wykł. 1`, `stoiska-wystawcow-poziom-i-plenum` → `Stoiska · Plenum`). Terms not in the map fall back to the room with `Sala wykładowa` shortened to `Sala wykł.` and `Sala warsztatowa` to `Warsztat.`, else the venue. `order` sorts by level (`0`, `I`, `I+II`, `II`, `III`, `null`) then by name.
+**Description.** All non-empty paragraphs after the first, sanitized (section 4.3). Usually empty.
 
-**Speakers.** `name` is the post title with entities decoded. `photo` is the `large` size URL if present, else `full`; `photoThumb` is `medium`, else `thumbnail`, else `photo`. Missing image gives `null`. `bioHtml` is the sanitized content with paragraphs consisting only of dashes or em dashes replaced by `<hr>`. `brands` are the names of the speaker's `cyfrowe-prelegent-type` terms, excluding `Prelegent`.
+**Locations.** Only terms with `count > 0` are emitted, but every fetched term is parsed and checked against the `short` map for the validation warning. Each name is parsed with the first rule that matches, in this order (level alternation is longest-first so `II` is never read as `I`):
+
+1. `/^(.*?)\s*-\s*poziom\s*(0|III|II|I)\s*-\s*(.+)$/i` → venue, level, room. Eight current terms, for example `So Salsa - poziom II - Sala wykładowa nr 1`.
+2. `/^(.*?)\s*-\s*poziom\s*I\s*\(([^)]+)\)\s*i\s*poziom\s*II\s*\(([^)]+)\)$/i` → venue, level `"I+II"`, room `"<g2> · <g3>"`. One term: `Stoiska wystawców - poziom I (PLENUM) i poziom II (SOSALSA)`.
+3. `/^(.*?)\s*-\s*poziom\s*(0|III|II|I)\s*\(([^)]+)\)(?:\s*-\s*(.+))?$/i` → venue, level, room = g3, followed by ` · ` + g4 when g4 is present. Five terms, for example `Stoiska wystawców - poziom II (SOSALSA) - Playground` → room `SOSALSA · Playground`.
+4. `/^(.*?)\s*-\s*poziom\s*(0|III|II|I)$/i` → venue, level, room `null`. Three terms, for example `Strefa sprzętu - poziom I`.
+5. `/^(.*?)\s*-\s*(Sala .+)$/` → venue, room, level `null`. Five terms, for example `Studio Luksfera - Sala warsztatowa III`.
+6. Otherwise venue is the full name, level `null`, room `null`. Four terms on the current data: `Rejestracja`, `W4`, `Wkrótce`, `ZERO ZERO (przed wejściem)`. Any other term reaching this rule is reported in the summary.
+
+`short` comes from a map in the script keyed by term id. Terms not in the map fall back to the room with `Sala wykładowa` shortened to `Sala wykł.` and `Sala warsztatowa` to `Warsztat.`, else the venue, and are reported. The current map:
+
+| id | name | short |
+|---|---|---|
+| 282 | Drizzly Grizzly - poziom 0 - Sala wykładowa nr 3 | Sala wykł. 3 |
+| 292 | Klub bokserski - poziom II - Sala warsztatowa II | Warsztat. II |
+| 279 | Klub bokserski - poziom II - Sala wykładowa nr 4 | Sala wykł. 4 |
+| 241 | Playground Cyfrowe.pl - poziom II | Playground |
+| 318 | Rejestracja | Rejestracja |
+| 293 | So Salsa - poziom II - Sala warsztatowa I | Warsztat. I |
+| 233 | So Salsa - poziom II - Sala wykładowa nr 1 | Sala wykł. 1 |
+| 281 | SoSalsa - poziom II - Sala wykładowa nr 2 | Sala wykł. 2 |
+| 308 | Stoiska wystawców - poziom I (PLENUM) | Stoiska · Plenum |
+| 311 | Stoiska wystawców - poziom I (PLENUM) - Canon | Stoiska · Canon |
+| 307 | Stoiska wystawców - poziom I (PLENUM) i poziom II (SOSALSA) | Stoiska · Plenum i SoSalsa |
+| 309 | Stoiska wystawców - poziom II (SOSALSA) | Stoiska · SoSalsa |
+| 313 | Stoiska wystawców - poziom II (SOSALSA) - Playground | Stoiska · Playground |
+| 310 | Stoiska wystawców - poziom II (SOSALSA) - wyjście na dach | Stoiska · Dach |
+| 239 | Strefa sprzętu - poziom I | Strefa sprzętu I |
+| 240 | Strefa sprzętu - poziom II | Strefa sprzętu II |
+| 236 | Studio Cukier by Luksfera - Sala warsztatowa IV | Warsztat. IV |
+| 237 | Studio Elektryków - Sala warsztatowa V | Warsztat. V |
+| 235 | Studio Luksfera - Sala warsztatowa III | Warsztat. III |
+| 234 | Studio na ringu - poziom II - Sala warsztatowa II | Warsztat. II (ring) |
+| 312 | W4 | W4 |
+| 280 | W4 - poziom I - Sala wykładowa nr 5 | Sala wykł. 5 |
+| 291 | Wkrótce | Wkrótce |
+| 283 | ZERO ZERO (przed wejściem) | Zero Zero · wejście |
+| 238 | Zero Zero - Sala warsztatowa VI | Warsztat. VI |
+| 290 | ZERO ZERO Antresola - Sala warsztatowa VI | Warsztat. VI (antresola) |
+
+`order` sorts by level (`0`, `I`, `I+II`, `II`, `III`, `null`) then by name with Polish collation. The `locations` array is written in `order` order.
+
+**Speakers.** `name` is the post title with entities decoded. `photo` is the `large` size URL if present, else `full`; `photoThumb` is `medium`, else `thumbnail`, else `photo`. Missing image gives `null` for both. `url` is the post's `link`. `bioHtml` is the sanitized content with every paragraph whose decoded text matches `/^[\s\-–—]+$/` replaced by `<hr>`. `brands` are the names of the speaker's `cyfrowe-prelegent-type` terms, excluding `Prelegent`.
 
 **Terms.** `types`, `themes`, `brands`, `signupStatuses` include only terms with `count > 0`, sorted by name with Polish collation.
 
@@ -105,7 +152,7 @@ The script fails (exit 1, nothing written) when:
 - any day term in use has no parseable date,
 - any session has a location id, type id or day id that is not in the fetched terms.
 
-It warns (summary output, file still written) about sessions without a parseable time, unresolved speaker slugs, locations that fell through to the fallback `short`, and speakers without a photo.
+It warns (summary output, file still written) about: sessions without a parseable time; sessions whose end was discarded; speaker anchors that did not resolve, and every anchor resolved by the name or `data-id` tier (so stale slugs stay visible); locations that reached parsing rule 6 other than the four listed; locations missing from the `short` map; sessions of 300 minutes or more that are not `allDay`; speakers without a photo.
 
 ### 4.5 Schema (`src/data/schedule.json`)
 
@@ -133,7 +180,7 @@ interface ScheduleData {
 interface Term { id: number; slug: string; name: string; count: number }
 
 interface Day {
-  id: string;         // "czw" | "pt" | "sob" ...
+  id: string;         // "czw" | "pt" | "sob" | "nd" | "pon" | "wt" | "sr"
   termId: number;
   date: string;       // "2026-09-04"
   label: string;      // "Piątek"
@@ -169,6 +216,7 @@ interface Session {
   title: string;
   start: number | null;  // minutes since midnight
   end: number | null;
+  allDay: boolean;
   timeText: string;
   speakerIds: number[];
   byline: string | null;
@@ -192,47 +240,52 @@ All in `src/domain/`, pure TypeScript, no React, each with a Vitest file.
 
 - `formatTime(minutes)` → `"09:05"`.
 - `formatRange(start, end)` → `"09:05–10:15"` or `"09:05"` when `end` is null.
-- `durationLabel(start, end)` → `"1 h 10 min"`, `"45 min"`, `"20 min"`.
-- `isAllDay(session)` → `end != null && end - start >= 300`.
+- `durationLabel(start, end)` → `"1 h 10 min"`, `"2 h"` (no minutes part when the remainder is 0), `"45 min"`; `null` when `end` is null.
+- `isAllDay(session)` → `session.allDay`.
 - `isPoint(session)` → `start != null && end == null`.
 - `visualEnd(session)` → `end ?? start + 20` for layout purposes.
 
 ### 5.2 `slots.ts`
 
-`detectSlots(sessions, { tolerance = 15 })` for one day's visible sessions with non-null `start`:
+`detectSlots(sessions, { tolerance = 15 })` runs on a **slot set**: sessions with non-null `start`, already reduced by the caller to the layout set defined in section 7.2 (all-day sessions are excluded while the strip is on).
 
 1. Collect distinct start times, sorted ascending.
 2. Walk them. Start a new cluster when either the gap to the previous start exceeds `tolerance` or the span from the cluster's first start would exceed `2 × tolerance`. Otherwise append to the current cluster. The span guard stops chains of 15-minute staggers from merging an entire morning.
 3. Each cluster becomes `Slot { index, start: cluster[0], lastStart: cluster[cluster.length - 1], end: nextSlot.start ?? max(visualEnd of members), sessionIds }`. A session belongs to the slot whose cluster contains its start.
 4. `rowSpan(session, slots, tolerance)`: the session occupies its own slot row and every later row `r` where `slots[r].start + tolerance < visualEnd(session)`. Point sessions occupy one row.
 
-`slotRegularity(slots, sessions, tolerance)` returns `{ medianGap, sharedRatio, distinguishable }` where `medianGap` is the median gap between consecutive slot starts, `sharedRatio` is the fraction of sessions in slots containing two or more sessions, and
+`slotRegularity(slots, sessions, tolerance)` returns `{ medianGap, sharedRatio, distinguishable }`. `medianGap` is the median of the gaps between consecutive slot starts (mean of the two middle values for an even count, 0 with fewer than two slots). `sharedRatio` is the fraction of sessions in slots containing two or more sessions. Then:
 
 ```
 distinguishable = slots.length >= 2 && medianGap >= 3 * tolerance && sharedRatio >= 0.75
 ```
 
-Calibration on the real data at `tolerance = 15`:
+Calibration on the real data at `tolerance = 15` with all-day sessions excluded (the default). Each set is a predicate over `src/data/schedule.json` using WordPress term ids. The fixture `src/test/fixtures/slot-sets.json` is a frozen snapshot holding, per set, `{ id, start, end }` for every session in the set, generated once by `npm run fetch -- --fixtures` and committed, so a later `npm run fetch` cannot silently change the domain tests.
 
-| visible set | slots | median gap | shared | distinguishable |
-|---|---|---|---|---|
-| Saturday, lectures only | 8 | 75 | 0.97 | yes |
-| Friday, lectures only | 13 | 45 | 0.78 | yes |
-| Friday, lecture rooms by location | 12 | 45 | 0.83 | yes |
-| Friday, all 82 sessions | 17 | 37.5 | 0.93 | no |
-| Saturday, all 80 sessions | 15 | 40 | 0.96 | no |
-| Friday, equipment-zone activities | 13 | 37.5 | 0.84 | no |
+| set | predicate | n | slots | median gap | shared | distinguishable |
+|---|---|---|---|---|---|---|
+| `sat-lectures` | day `sob`, any type in {184, 278} | 29 | 8 | 75 | 0.97 | yes |
+| `sat-prelekcja-only` | day `sob`, type 184 | 26 | 8 | 75 | 0.96 | yes |
+| `fri-lectures` | day `pt`, any type in {184, 278} | 27 | 13 | 45 | 0.78 | yes |
+| `fri-prelekcja-only` | day `pt`, type 184 | 25 | 14 | 45 | 0.72 | no |
+| `fri-lecture-rooms` | day `pt`, any location in {282, 279, 233, 281, 280} | 29 | 12 | 45 | 0.83 | yes |
+| `fri-all` | day `pt` | 72 | 16 | 40 | 0.93 | no |
+| `sat-all` | day `sob` | 70 | 15 | 40 | 0.96 | no |
+| `fri-equipment` | day `pt`, any type in {214, 215} | 31 | 12 | 40 | 0.87 | no |
 
-This matches the intent: filter to lectures and you get a slot table, look at everything and you get a timeline. These six rows are encoded as fixture tests.
+`shared` is `sharedRatio` rounded to two decimals; tests use `toBeCloseTo(x, 2)`. Filtering to lectures yields a slot table on both days (on Friday only when both lecture types are visible, because the five `Prelekcja z sesją` talks fill the shared cells); a full day yields a timeline. These eight sets are encoded as fixture tests. If regenerating the fixture ever changes a number, the table is updated in the same commit.
 
 ### 5.3 `overlaps.ts`
 
-- `overlaps(a, b)` → `a.start < visualEnd(b) && b.start < visualEnd(a)` for same-day sessions with non-null starts. Sessions without a start never overlap anything.
-- `overlapGroups(sessions)` → connected components of the overlap graph via a sweep line sorted by start. Used by the detail panel ("W tym samym czasie" shows every session that overlaps the selected one, not the whole component) and by the plan summary.
-- `packLanes(sessions)` → `Map<sessionId, { lane, lanes }>`. Sort by start ascending, then by visualEnd descending. Greedy: assign the lowest lane whose last end is `<= start`. `lanes` is the lane count of the session's connected component, so widths are `1 / lanes`.
-- `planConflicts(favouriteSessions)` → list of `{ a, b }` pairs that overlap, sorted by `a.start`.
+- `overlaps(a, b)` → `a.start < visualEnd(b) && b.start < visualEnd(a)` for same-day sessions with non-null starts; `false` when either session is `allDay` or lacks a start. All-day zones therefore never appear in conflicts, lanes, badges or "W tym samym czasie".
+- `overlapGroups(sessions)` → connected components of the overlap graph via a sweep line sorted by start. Used by `packLanes` for the component lane count and by the plan summary. The detail panel's "W tym samym czasie" uses `overlaps` pairwise against the selected session, never the whole component.
+- `packLanes(sessions, minMinutes)` → `Map<sessionId, { lane, lanes }>`. The packing end of a session is `max(visualEnd(s), s.start + minMinutes)` so cards stretched to the minimum height never paint over the next card in their lane. Sort by start ascending, then by packing end descending. Greedy: assign the lowest lane whose last end is `<= start`. `lanes` is the lane count of the session's connected component (computed with the same packing ends), so widths are `1 / lanes`.
+- `maxConcurrency(sessions)` → the largest number of sessions running at one minute, by sweeping start and end events. Used by list-group headers.
+- `planConflicts(planSessions)` → list of `{ a, b }` pairs that overlap, sorted by `a.start`.
 
-### 5.4 `filters.ts`
+### 5.4 `normalize.ts` and `filters.ts`
+
+`normalizeText(s)` = replace `ł`→`l` and `Ł`→`L` (they have no canonical decomposition), then `s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()`. Shared by the fetch script (speaker name matching) and the search.
 
 ```ts
 interface Filters {
@@ -241,23 +294,29 @@ interface Filters {
 }
 ```
 
-`applyFilters(sessions, filters, favourites, index)` keeps a session when it matches every non-empty facet (OR within a facet, AND across facets), the query, favourites-only and the all-day rule. The query is normalized with `normalize(s) = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()` and matched as a substring against title, speaker names, byline, theme names, brand names, location names and type names. `index` is a prebuilt map from session id to its searchable text so typing stays cheap.
+`applyFilters(sessions, filters, planSet, index, opts?)` keeps a session when it matches every non-empty facet (OR within a facet, AND across facets), the query, favourites-only against `planSet` and the all-day rule (`hideAllDay` removes `allDay` sessions). `opts` is `{ ignoreQuery?: boolean; ignoreFavourites?: boolean }` so callers can build the layout set with one function. The query is normalized with `normalizeText` and matched as a substring against title, speaker names, byline, theme names, brand names, location names and type names. `index` is a prebuilt map from session id to its normalized searchable text so typing stays cheap.
 
-`facetCounts(sessions, filters, facet)` returns counts per term computed with every facet except the one being counted, so the sidebar shows how many results each choice would leave.
+The `signup` facet is keyed by status value, not term id: options are the `SignupStatus` values in the order `open, full, included, free, soon, unknown`, labelled with the matching `signupStatuses` term name or `"Brak informacji"` for `unknown`; a session matches when `filters.signup.includes(session.signup.status)`.
+
+`facetCounts(sessions, filters, facet, planSet, index)` returns counts per option of `facet` over `applyFilters(sessions, { ...filters, [facet]: [] }, planSet, index)`, so every other facet, the query, favourites-only and the all-day rule apply and the count is exactly how many results ticking that option would leave.
 
 ### 5.5 `plan.ts`, `share.ts`, `ics.ts`, `text.ts`
 
-- `plan.ts`: `planForDay(favourites, day)`, `planSummary(favourites)` → sessions per day and conflicts via `planConflicts`, `nextUp(favourites, now)` → the earliest favourite with `start >= now` on the current festival day.
-- `share.ts`: `encodePlan(ids)` → `"1~" + ids.map(id => eventId.toString(36) + dayCode).join(".")` where `dayCode` is the first letter of the day id (`c`, `p`, `s`); `decodePlan(str, days)` → valid session ids plus the count of unknown ones. Unknown version prefixes decode to nothing.
-- `ics.ts`: `buildIcs(sessions, data)` → an `iCalendar` string with one `VEVENT` per session. Floating local times (`DTSTART:20260904T093000`), `UID` = `<sessionId>@swiatlosila-plan`, `SUMMARY` = title, `LOCATION` = location name, `DESCRIPTION` = speakers, byline and source URL, lines folded at 75 octets, CRLF endings. Point sessions get a 20-minute `DTEND`.
-- `text.ts`: `planAsText(sessions, data)` → one heading per day, then `09:30–10:30 · Title · Sala wykł. 1 · Speaker` lines.
+- `plan.ts`: `planForDay(planSet, day)`, `planSummary(planSet)` → sessions per day and conflicts via `planConflicts` grouped by day, `nextUp(planSet, now)` → the earliest plan session with `start >= nowMinutes` on today's festival day, or `null`.
+- `share.ts`: `DAY_CODES` is a fixed map unique across every id the normalizer can emit: `czw→c`, `pt→p`, `sob→s`, `nd→n`, `pon→m`, `wt→t`, `sr→r`. `encodePlan(ids)` → `"1~" + ids.map(id => eventId.toString(36) + DAY_CODES[dayId]).join(".")`. `decodePlan(str, sessionIds: Set<string>)` → `{ ids: string[]; unknown: number }`: each `.`-separated token's last character is the day code, the rest the base-36 event id; tokens with an unmapped code, an unparseable id, or an `"<eventId>:<dayId>"` not in `sessionIds` are counted as unknown. An unknown version prefix returns `{ ids: [], unknown: 0 }`.
+- `ics.ts`: `buildIcs(sessions, data)` emits `BEGIN:VCALENDAR`, `VERSION:2.0`, `PRODID:-//swiatlosila-plan//PL`, `CALSCALE:GREGORIAN`, then per session a `VEVENT` with `UID:<sessionId>@swiatlosila-plan`, `DTSTAMP` from `meta.fetchedAt` in UTC basic form, `DTSTART`/`DTEND` as floating local times (`DTSTART:20260904T093000`; point sessions end 20 minutes later), `SUMMARY`, `LOCATION` (location names joined by `, `), `DESCRIPTION` (speakers, byline and source URL separated by `\n`), `URL`. TEXT values escape `\` → `\\`, `;` → `\;`, `,` → `\,`, newline → `\n`. Lines are folded at 75 octets without splitting a UTF-8 sequence, CRLF endings. Sessions without a start are skipped.
+- `text.ts`: `planAsText(sessions, data)` → one heading per day (`labelLong`), then chronological lines `09:30–10:30 · Title · Sala wykł. 1 · Speaker`; sessions without a start listed last under `Bez godziny`.
 
 ### 5.6 `now.ts`
 
-- `resolveNow(search)` → `Date` from `?now=<ISO>` when present and valid, else the real clock. The override is read once at boot and then advanced with the real clock delta so the cursor still moves.
-- `nowFor(day, now)` → minutes since midnight when `now` falls on `day.date`, else `null`.
-- `liveState(session, nowMinutes)` → `"past" | "live" | "soon" | "upcoming"`, where `soon` means starting within 15 minutes.
-- `defaultDay(days, now, sessionsPerDay)` → the first day on or after today's date with more than 5 sessions, else the first day with more than 5 sessions, else the first day.
+All date logic uses the browser's local time.
+
+- `resolveNow(search)` → `new Date(v)` for `?now=v` when the result is a finite time (a value without a UTC offset is local), else the real clock. The override is read once at boot; the app then adds the real elapsed time so the cursor still moves.
+- `nowFor(day, now)` → `now.getHours() * 60 + now.getMinutes()` when `now`'s local `YYYY-MM-DD` equals `day.date`, else `null`.
+- `liveState(session, nowMinutes)` → `"upcoming"` when `start == null` or `nowMinutes == null`; `"past"` when `visualEnd(session) <= nowMinutes`; `"live"` when `start <= nowMinutes < visualEnd(session)`; `"soon"` when `0 < start - nowMinutes <= 15`; otherwise `"upcoming"`.
+- `defaultDay(days, now, sessionsPerDay)` → the first day whose local date is on or after today with more than 5 sessions, else the first day with more than 5 sessions, else the first day.
+
+Tests build dates with `new Date(2026, 8, 4, 10, 30)`, never ISO strings with `Z`, so they hold in any timezone.
 
 ## 6. State and persistence
 
@@ -265,15 +324,22 @@ Single Zustand store in `src/state/store.ts`.
 
 ```ts
 interface Settings {
-  columnAxis: "location" | "type" | "brand" | "level" | "none";
-  timeMode: "auto" | "slots" | "timeline";
-  slotTolerance: number;          // 5..45 step 5, default 15
-  zoom: number;                   // px per minute, 1.2..4 step 0.2, default 2
-  density: "compact" | "comfortable";
-  colorBy: "type" | "location" | "brand";
-  showAvatars: boolean;
-  allDayStrip: boolean;           // default true
-  theme: "system" | "dark" | "light";
+  columnAxis: "location" | "type" | "brand" | "level" | "none"; // default: see Defaults
+  timeMode: "auto" | "slots" | "timeline";   // default "auto"
+  slotTolerance: number;                     // 5..45 step 5, default 15
+  zoom: number;                              // px per minute, 1.2..4 step 0.2, default: see Defaults
+  density: "compact" | "comfortable";        // default "comfortable"
+  colorBy: "type" | "location" | "brand";    // default "type"
+  showAvatars: boolean;                      // default true
+  allDayStrip: boolean;                      // default true
+  planLayout: "grid" | "list";               // layout inside the plan view, default "list"
+  theme: "system" | "dark" | "light";        // default "system"
+}
+
+interface Toast {
+  id: number;
+  text: string;
+  action?: { label: string; run: () => void };  // present → shown 6 s, else 3 s
 }
 
 interface State {
@@ -281,101 +347,120 @@ interface State {
   filters: Filters; settings: Settings;
   favourites: string[];
   selectedSessionId: string | null;
-  openSheet: "filters" | "settings" | "detail" | null;
+  openSheet: "filters" | "settings" | "detail" | "copy" | null;
   previewPlan: string[] | null;   // from a share link, not persisted
   toasts: Toast[];
 }
 ```
 
-**Persistence.** `favourites`, `settings`, `day` and `view` are written to `localStorage` under `swiatlosila-2026:v1` through Zustand's `persist` middleware with a `version` and a `migrate` hook. If storage throws (private mode, quota) the store keeps working in memory and shows one toast: "Nie mogę zapisać ulubionych w tej przeglądarce". Session ids in stored favourites that do not exist in the data are dropped at boot with a toast stating how many.
+**Defaults.** `defaultSettings(viewportWidth)` returns the annotated values; `columnAxis` is `"none"` below 700 px, else `"location"`, and `zoom` is 1.6 below 700 px, else 2. It is called at first boot (nothing in storage) and by the reset button (section 7.8). The `migrate` hook fills any field missing from a stored `settings` object with `defaultSettings(window.innerWidth)` so new fields get defaults without wiping other choices.
 
-**First-run defaults.** `columnAxis` is `"none"` when the viewport is narrower than 700 px at first boot, otherwise `"location"`. `zoom` is 1.6 on narrow viewports, 2 otherwise. `view` is `"list"` on narrow viewports, `"grid"` otherwise. `day` comes from `defaultDay`.
+**Persistence.** `favourites`, `settings` and `view` are written to `localStorage` under `swiatlosila-2026:v1` through Zustand's `persist` middleware with a `version` and the `migrate` hook. `day` is never persisted, so a visitor who used the app on Friday lands on Saturday's schedule on Saturday. If storage throws (private mode, quota) the store keeps working in memory and shows one toast: "Nie mogę zapisać ulubionych w tej przeglądarce". Session ids in stored favourites that do not exist in the data are dropped at boot with a toast stating how many.
 
-**URL hash.** `#d=<dayId>&v=<view>` is written on change with `history.replaceState` and read on boot and on `hashchange`, so bookmarks and back navigation work. A shared plan adds `&plan=<encoded>`. The app strips `plan` from the hash after it is loaded or dismissed.
+**Boot precedence.** `view`: a valid `v` in the hash, else the persisted value, else `"list"` below 700 px and `"grid"` otherwise. `day`: a valid `d` in the hash, else `defaultDay`. A value naming an unknown day or view is skipped at that step. After resolution the hash is rewritten to the resolved values.
 
-**Share flow.** On boot with `plan` present: decode, then show a banner "Ktoś udostępnił Ci plan: N wydarzeń" with three actions. "Wczytaj" unions the ids into favourites. "Tylko podgląd" sets `previewPlan` and switches to the plan view, which then shows the preview with a "Zapisz jako mój plan" button and a note that it is not saved. The close icon dismisses. If every id was unknown the banner says the link points to a schedule version that no longer matches.
+**URL hash.** `#d=<dayId>&v=<view>` is written on change with `history.replaceState(null, "", "#" + params)` (a fragment-only URL, so `?now=` and the file path are preserved) and read on boot and on `hashchange`, so bookmarks and hand-edited links work. Back does not traverse day or view changes. A shared plan adds `&plan=<encoded>`, removed with `replaceState` once loaded or dismissed.
+
+**Share flow.** On boot with `plan` present: `decodePlan`, then show a banner "Ktoś udostępnił Ci plan: N wydarzeń" (plus "M nie pasuje do tej wersji harmonogramu" when `unknown > 0`) with three actions. "Wczytaj" unions the ids into `favourites`. "Tylko podgląd" sets `previewPlan` and switches to the plan view. The close icon dismisses. If every id was unknown the banner says the link points to a schedule version that no longer matches and offers only close.
+
+**Plan set.** Everywhere the plan is read, the plan set is `previewPlan ?? favourites`. While `previewPlan` is set: the plan view header reads "Podgląd udostępnionego planu · nie zapisano" with "Zapisz jako mój plan" (unions into `favourites`, clears `previewPlan`) and "Zamknij podgląd" (clears it); the conflict resolution buttons, "Udostępnij" and card stars are hidden; summary, conflicts list, "Kopiuj jako tekst", "Pobierz .ics" and "Drukuj" use the plan set. Switching to another view clears `previewPlan`.
 
 ## 7. UI
 
 ### 7.1 Shell
 
-- Top bar: mark (orange burst glyph plus "ŚwiatłoSiła 2026"), day tabs, view switcher, search input, "Widok" settings button, theme toggle, live chip. The live chip reads "Teraz 10:42 · trwa 6" when the selected day is today, "Jutro od 09:00" the day before, and is hidden otherwise. Clicking it scrolls the grid to the now line.
-- Desktop (1100 px and up): filters in a 280 px left sidebar that collapses to icons.
+- Top bar: mark (orange burst glyph plus "ŚwiatłoSiła 2026"), day tabs, view switcher, search input, "Widok" settings button, theme toggle (cycles system → dark → light, showing the current value as its icon), live chip.
+- Live chip: "Teraz HH:MM · trwa N" when the selected day is today (N = the day's sessions, before filtering, whose `liveState` is `live`); "Jutro od HH:MM" when the selected day is the calendar day after today (HH:MM = the earliest non-null start of that day, before filtering); hidden otherwise. In grid view clicking the "Teraz" chip scrolls to the now line; in list view it scrolls to the first group containing a `live` or `soon` session; the "Jutro" chip is not interactive.
+- Wide (1100 px and up): filters in a 280 px left sidebar, always visible.
 - Medium (700 to 1099 px): filters in a left drawer opened from a "Filtry" button that shows the active count.
-- Mobile (under 700 px): bottom tab bar with Siatka, Lista, Mój plan (favourite count badge) and Filtry. Search collapses to an icon that expands the input across the top bar. The "Widok" button stays in the top bar.
-- Active filters render as removable chips in a row under the top bar with "Wyczyść wszystko" at the end. The row scrolls horizontally on mobile.
-- Toasts appear bottom-centre, one at a time, three seconds, announced through an `aria-live="polite"` region.
+- Mobile (under 700 px): the view switcher leaves the top bar and is replaced by a bottom tab bar with Siatka, Lista, Mój plan (favourite count badge) and Filtry. The mark is the glyph alone. Day tabs sit in a second, horizontally scrollable row under the top bar. Search collapses to an icon that expands the input across the top bar. "Widok" stays in the top bar and opens the settings as a bottom sheet (`openSheet = "settings"`), which then also holds the theme control; the top-bar theme toggle is hidden. The live chip collapses to a pulsing dot with the count ("· 6") that expands to the full text on tap.
+- Active filters render as removable chips in a row under the day tabs with "Wyczyść wszystko" at the end. The row scrolls horizontally on mobile.
+- Toasts appear bottom-centre, one at a time in insertion order, three seconds (six with an action), announced through an `aria-live="polite"` region.
 
 ### 7.2 Grid engine (`ScheduleGrid`)
 
-Input: visible sessions for the day, settings, favourites, now. Output: a scroll container that scrolls in both axes with a sticky time rail on the left and sticky column headers on top. Both headers use `position: sticky` inside the same scroll container; corner cell is sticky in both directions.
+**Session sets.** The grid distinguishes two sets for the selected day.
+
+- The *layout set*: the day's sessions after the facets (types, themes, brands, locations, signup) and the all-day rule only, with `query` treated as empty and `onlyFavourites` ignored (`applyFilters` with `ignoreQuery` and `ignoreFavourites`); minus sessions with `start == null` (they go to the no-time strip); minus `allDay` sessions while `allDayStrip` is on (they go to the all-day strip). In the plan view the layout set is additionally restricted to the plan set.
+- The *visible set*: `applyFilters` with everything applied.
+
+The timeline range, `detectSlots`, `slotRegularity`, `packLanes`, column widths and the now line are computed from the layout set. Cards are rendered for sessions in both sets. Typing in the search box or toggling "Tylko ulubione" therefore never changes the time mode, the rail, the row set, the vertical scale or lane widths: non-matching cards leave with the exit animation and matching cards stay exactly where they were. Columns are those with at least one visible session, so a search still narrows the grid to columns with results. The empty state (section 9) applies when the visible set is empty.
+
+Input: the layout set, the visible set, settings, plan set, now. Output: a scroll container that scrolls in both axes with a sticky time rail on the left and sticky column headers on top.
+
+**Strips.** Both strips render outside the scroll container, directly above it, full width, in this order: the all-day strip (when `allDayStrip` is on and there are `allDay` sessions in the visible set), then the "Bez godziny" strip (when there are visible sessions without a start). Each is a single horizontally scrolling row of chips at most 44 px tall, prefixed with "Całodniowe (N)" or "Bez godziny (N)". A chip opens the detail panel and carries its own star. Strips are not sticky.
 
 **Columns.** Determined by `columnAxis`:
 
 - `location`: one column per location with at least one visible session, ordered by `Location.order`. A session with several locations appears in each.
 - `type`: one column per primary type. The primary type is the session's first type in this priority order: Prelekcja, Prelekcja z sesją, Warsztaty, Fotospacer, Fotogra, PLAYGROUND, DZIAŁANIA W STREFIE SPRZĘTU, STREFA TELEOBIEKTYWÓW, Ogólne, then any other type by name.
 - `brand`: one column per first brand, plus "Bez marki".
-- `level`: one column per location level, labelled "Poziom 0", "Poziom I", "Poziom I i II", "Poziom II", "Inne".
-- `none`: a single column that fills the width.
+- `level`: one column per location level present, in the `order` sequence, labelled "Poziom 0", "Poziom I", "Poziom I i II", "Poziom II", "Poziom III", and "Inne" for `null`. A session whose locations span several levels appears in each.
+- `none`: a single column holding every visible session.
 
-Column headers show the label, a count of visible sessions, and for locations the venue as a second line. Minimum column width is 200 px (comfortable) or 160 px (compact); in `none` mode the column is the container width.
+Column headers show the label, a count of visible sessions, and for locations the venue as a second line.
 
-**Time modes.** `auto` resolves to `slots` when `slotRegularity(...).distinguishable` is true for the current visible set, else `timeline`. The resolved mode is shown in the settings popover as "Auto (sloty)" or "Auto (oś czasu)".
+**Column width.** `minColumnWidth` is 200 px comfortable, 160 px compact. In slot mode every column is `minColumnWidth` wide and `none` fills the container. In timeline mode a column's width is `max(minColumnWidth, columnLanes × laneMin)` where `columnLanes` is the largest `lanes` value among the `packLanes` components formed by that column's layout-set sessions and `laneMin` is 150 px compact, 180 px comfortable; for `none` the column is additionally at least the container width minus the rail. A card's width is `columnWidth / lanes` of its own component and `left = lane × width`, so components with fewer lanes than the column maximum get wider cards. When the summed column widths exceed the container, the grid scrolls horizontally inside its own scroll container; the page never scrolls horizontally. On the real data the unfiltered Friday `none` column has 13 lanes (1950 px compact) and the "Stoiska · Plenum" column 8 lanes; lecture-only views have one or two lanes and fit without scrolling.
 
-*Timeline mode.* The day range runs from the earliest visible start rounded down to the half hour to the latest visible end rounded up to the half hour, with 15 minutes of padding on each side. Vertical scale is `zoom` px per minute. The rail shows hour labels and half-hour ticks. Inside each column, cards are absolutely positioned: `top = (start - rangeStart) * zoom`, `height = max((visualEnd - start) * zoom, minCardHeight)`, and `left`/`width` from `packLanes` so overlapping cards sit side by side. `minCardHeight` is 28 px compact, 44 px comfortable. Cards shorter than 56 px hide everything except the title and time.
+**Time modes.** `auto` resolves to `slots` when `slotRegularity(...).distinguishable` is true for the layout set, else `timeline`. `slots` and `timeline` force the mode. The resolved mode is shown in the settings popover as "Auto (sloty)" or "Auto (oś czasu)".
 
-*Slot mode.* Rows come from `detectSlots`. The rail shows the slot start in the display font and, when a cluster has more than one distinct start, the range `09:30–10:00` underneath in small text. Rows use `grid-auto-rows: minmax(<rowMin>, auto)` with `rowMin` 64 px compact, 88 px comfortable. A card is placed at `grid-row: startRow / span rowSpan`. Several sessions in the same cell and row stack vertically. Cards keep their exact time text so the approximation is never hidden.
+*Timeline mode.* The day range runs from the earliest layout-set start rounded down to the half hour to the latest layout-set `visualEnd` rounded up to the half hour, with 15 minutes of padding on each side. Vertical scale is `zoom` px per minute. The rail shows hour labels and half-hour ticks. The scroll container is a CSS grid with the corner, one header cell per column, the rail and one column body per column; each column body is `position: relative` and holds absolutely positioned cards: `top = (start - rangeStart) × zoom`, `height = max((visualEnd - start) × zoom, minCardHeight)`, `left` and `width` from the lane rule above. `minCardHeight` is 28 px compact, 44 px comfortable, and 44 px in both densities on coarse pointers (`@media (pointer: coarse)`); `packLanes` receives `minMinutes = ceil(minCardHeight / zoom)`. Cards shorter than 56 px show the title on one line plus the time; cards shorter than 40 px show the title alone (time stays in the `aria-label` and `title` attribute).
 
-**All-day strip.** When `allDayStrip` is on, sessions with `isAllDay` true render in a horizontal strip above the column headers, one chip per session, instead of as tall cards. When off they render as normal cards. The strip is sticky with the headers.
+*Slot mode.* Rows come from `detectSlots` over the layout set. The scroll container is itself the CSS grid: its direct children are the corner cell, one header cell per column, one rail cell per slot row, one cell wrapper per (column, row) that has content, spanning cards, and the now line. The rail cell shows the slot start in the display font and, when the cluster has more than one distinct start, the range `09:30–10:00` underneath in small text. Rows use `grid-auto-rows: minmax(<rowMin>, auto)` with `rowMin` 64 px compact, 88 px comfortable, so a row grows to its tallest wrapper. A cell wrapper stacks its children vertically with an 8 px gap: continuation stubs first, then cards sorted by start then title.
 
-**No-time strip.** Sessions with `start == null` render in a "Bez godziny" strip below the all-day strip, only when there are any.
+Row spanning is decided per column. For a session with `rowSpan` k > 1, the card renders as its own grid item at `grid-row: startRow / span k` only when no other session in that column has a row interval intersecting `[startRow, startRow + k)`; because nothing else occupies those cells, no wrapper is placed there and nothing can overlap. Otherwise the card is confined to the wrapper of its start row and each of the next k − 1 wrappers in that column receives a continuation stub: a single-line element with the card's colour edge, the title muted and clamped to one line, and "do 16:00" (the session's end). Stubs are plain elements, carry `aria-hidden="true"` and no tab stop; a pointer click on one opens the session's detail panel. When a wrapper would hold more than three stubs it shows the first three and a muted "+N w trakcie" line; those sessions stay reachable from their start row and from "W tym samym czasie". Cards keep their exact time text so the approximation is never hidden. Under the location axis on the real data every spanning session spans; under `type`, `none` and `level` the Friday 13:20–14:20 lecture is confined with a stub in the 13:40 row.
 
-**Now line.** When `nowFor(day, now)` is not null, a horizontal line with a time chip spans the grid at the corresponding position (timeline: exact; slot mode: at the slot row containing now, aligned to the row's top edge with the chip saying the exact time). On first render for that day, the container scrolls so the line sits a third of the way down the viewport.
+**Now line.** When `nowFor(day, now)` is not null: in timeline mode a horizontal line across every column at the exact position, with a time chip rendered inside the sticky rail so it survives horizontal scroll; in slot mode a column-spanning item on the row `r` with `slots[r].start <= now < slots[r].end`, aligned to the row's top edge (`align-self: start`, `pointer-events: none`), the chip showing the exact time, hidden when no slot contains now. On first render for that day the container scrolls so the line sits a third of the way down the viewport.
 
 **Point sessions.** Rendered as a pin: a 20-minute-tall card with a diamond marker on the left edge and the single time.
 
 ### 7.3 Session card
 
-Content, in order: colour edge on the left (hue from `colorBy`), title clamped to three lines (two in compact), time range, room short label (hidden when the column axis is location), up to three overlapping speaker avatars with initials fallback, a signup badge when status is `open` (green "Zapisy") or `full` (red "Brak miejsc"), and a star button. Cards are `<button>` elements; the star is a nested focusable control and stops propagation.
+A card is an `<article>` wrapper, positioned by the grid engine, containing exactly two sibling controls. The primary control is a `<button class="card__main">` that fills the card, holds the content below as phrasing content (`<span>` and `<img>` only), and opens the detail panel. The star is a separate `<button class="card__star">` positioned absolutely in the top-right corner of the `<article>` above the primary button, with padding reserved on the primary button so the title never sits under it; it uses `aria-pressed` with the constant accessible name "Do planu". Because the two are siblings, no propagation handling is needed. No interactive element is ever nested inside another anywhere in the app; the same two-sibling-controls structure is used for list rows (7.4), strip chips (7.2) and "W tym samym czasie" rows (7.6). DOM order inside a column follows start time so Tab order matches reading order.
 
-States: default, hover (lift by 2 px, deeper shadow), focus (2 px accent ring), favourited (star filled in accent, faint accent tint on the surface), live (animated 2 px accent outline pulse and a "Teraz" pill), past (opacity 0.6 when the day is today), conflict (a small triangle badge with the number of favourite sessions it overlaps, shown only when the card itself is favourited).
+Content, in order: colour edge on the left (hue from `colorBy`), title clamped to three lines (two in compact), time range, short location label (hidden when the column axis is location), up to three overlapping speaker avatars with initials fallback, a signup badge when status is `open` (green "Zapisy") or `full` (red "Brak miejsc"), and the star.
+
+States: default, hover (lift by 2 px, deeper shadow), focus (2 px accent ring), in plan (star filled in accent, faint accent tint on the surface), live (animated 2 px accent outline pulse and a "Teraz" pill), past (opacity 0.6 when the day is today), conflict (a small triangle badge with the number of plan sessions it overlaps, shown only when the card itself is in the plan).
 
 ### 7.4 List view
 
-Groups of sessions under headers. When `slotRegularity` is distinguishable the groups are the detected slots; otherwise they are hourly buckets by start time. Each header shows the slot or hour label and "N równolegle" when the group has two or more sessions. Rows are compact cards in a single column: time, colour dot, title, room, speakers, star. Sessions with no start appear last under "Bez godziny". All-day sessions appear in a leading "Całodniowe" group when the strip setting is on.
+Groups of sessions under headers. Grouping follows the resolved time mode from 7.2 (which honours a forced `timeMode`): in `slots` the groups are the detected slots; otherwise hourly buckets by start time labelled `10:00–11:00`. Groups are computed from the layout set; rows are the visible set; a group with no visible rows is omitted. Each header shows the label, "N wydarzeń", and "M równolegle" where M is `maxConcurrency` of the group's visible sessions, shown only when M ≥ 2 and omitted when M equals N. Rows are compact cards in a single column: time, colour dot, title, location, speakers, star. When `allDayStrip` is on, `allDay` sessions form a leading "Całodniowe" group; when off they sit in their start group. Sessions without a start appear last under "Bez godziny".
 
 ### 7.5 Plan view
 
-The same grid and list components with `onlyFavourites` forced, plus:
+The same grid and list components rendering the selected day (day tabs stay active), restricted to the plan set, with `planLayout` choosing grid or list through a segmented toggle inside the view. Plus:
 
-- a summary bar: "Pt 6 · Sob 4" counts, conflict count in an amber pill when non-zero, "Następne: <title> za 25 min" when applicable.
-- a conflicts panel listing each overlapping pair with the two titles, the overlap length, and buttons "Zostaw lewe" / "Zostaw prawe" that remove the other one.
-- actions: "Udostępnij" (copies the share URL, toast confirms), "Kopiuj jako tekst", "Pobierz .ics", "Drukuj" (opens the print dialog; a print stylesheet renders the plan as a plain list).
-- a toggle between grid and list inside the plan view, remembered in `settings`.
+- a summary bar across all days: "Pt 6 · Sob 4", the conflict count in an amber pill when non-zero, and "Następne: <title> za 25 min" from `nextUp` when applicable.
+- a conflicts panel listing every overlapping pair across all days, grouped by day. Each side shows the session's time, title and location with its own "Usuń z planu" button; the two sit side by side at 700 px and up and stack vertically below. Removing shows a toast "Usunięto z planu: <title>" with a "Cofnij" action that restores it.
+- actions, in this order: "Kopiuj jako tekst", "Udostępnij", "Pobierz .ics", "Drukuj".
+  - "Udostępnij" copies `u.href` where `u = new URL(location.href); u.search = ""; u.hash = "#d=<day>&v=plan&plan=" + encodePlan(ids)`. Toast: "Skopiowano link do planu". When `location.protocol` is `file:` the toast instead reads "Skopiowano. Link zadziała tylko u osób z tym samym plikiem. Opublikuj aplikację w sieci, aby udostępniać plan".
+  - Copy actions use `navigator.clipboard.writeText`; when it is missing or rejects, a "Skopiuj ręcznie" sheet (`openSheet = "copy"`) shows the text in a read-only, pre-selected textarea.
+  - "Pobierz .ics" builds `new Blob([ics], { type: "text/calendar;charset=utf-8" })` and clicks a temporary anchor with `download="swiatlosila-2026-plan.ics"`.
+  - "Drukuj" calls `window.print()`. The plan view always renders a `<section class="print-plan">` (hidden on screen) with one `<h2>` per day and a `<ul>` of `planAsText` lines regardless of `planLayout`; `print.css` hides everything else, including sheets and toasts.
 - empty state: an illustration made of the orange burst, "Twój plan jest pusty", and a button that switches to the grid.
 
 ### 7.6 Detail panel
 
-Opens on card click. Desktop: 420 px side sheet from the right, content scrolls, grid stays visible. Mobile: bottom sheet at 90 % height. Both trap focus, close on Escape, backdrop click and the close button, and restore focus to the opening card.
+Opens on card click. At 700 px and up: 420 px side sheet from the right, content scrolls, grid stays visible. Under 700 px: bottom sheet at 90 % height. Both trap focus, close on Escape, backdrop click and the close button, and restore focus to the control that opened them (a card's primary button, a list row, a chip).
 
-Content: type chip, title, day and time with duration, venue, level and room, theme chips, brand chips, speakers (photo, name, brands, a "Pokaż bio" disclosure that renders `bioHtml`), byline when no speakers resolved, the signup button (external link, disabled with the label when `full`), "Dodaj do planu" / "Usuń z planu", "W tym samym czasie" listing every overlapping visible-or-not session of the same day with time, title, room and a star, and a "Zobacz na stronie festiwalu" link.
+Content: type chip, title, day and time with duration (single time and no duration for point sessions), venue, level and room, theme chips, brand chips, speakers (photo, name, brands, a "Pokaż bio" disclosure that renders `bioHtml`), byline when no speakers resolved, the signup button (external link, disabled with the label when `full`), "Dodaj do planu" / "Usuń z planu", "W tym samym czasie" listing every same-day session for which `overlaps` is true (all-day zones excluded by definition), whether or not currently visible, each with time, title, location and a star, and a "Zobacz na stronie festiwalu" link.
 
 ### 7.7 Filters sidebar and sheet
 
-Facets in this order: Typ, Miejsce (grouped by level with the level as a sub-header), Tematyka, Marka, Zapisy. Each facet is a disclosure, open by default for Typ and Miejsce, closed for the long ones. Options are checkboxes with the facet count from `facetCounts`; zero-count options are dimmed, never hidden. Long facets have a small inline search. Toggles at the bottom: "Ukryj strefy całodniowe", "Tylko ulubione". A "Wyczyść" button per facet and one for all.
+Facets in this order: Typ, Miejsce (grouped by level with the level as a sub-header), Tematyka, Marka, Zapisy. Each facet is a disclosure; Typ, Miejsce and Zapisy are open by default, Tematyka and Marka closed. Tematyka and Marka have a small inline search. Options are checkboxes with the count from `facetCounts`; zero-count options are dimmed, never hidden. Toggles at the bottom: "Ukryj strefy całodniowe", "Tylko ulubione". A "Wyczyść" button per facet and one for all.
 
 ### 7.8 Settings popover ("Widok")
 
-Segmented controls and sliders for every `Settings` field except `theme`, which lives in the top bar. Each control has a one-line hint. Slot tolerance and zoom are sliders with the current value shown. A "Przywróć domyślne" button resets settings only.
+A popover at 700 px and up, a bottom sheet below. Segmented controls and sliders for every `Settings` field except `theme` (top bar at 700 px and up, inside this sheet below) and `planLayout` (inside the plan view). Each control has a one-line hint. Slot tolerance and zoom are sliders with the current value shown. A "Przywróć domyślne" button replaces every field the popover shows with `defaultSettings(window.innerWidth)`, so `columnAxis` and `zoom` are re-evaluated against the current viewport; `theme`, `planLayout`, `day`, `view`, `filters` and `favourites` are untouched.
 
 ### 7.9 Keyboard and accessibility
 
 - Day tabs use the roving tabindex pattern with arrow keys.
-- Cards are buttons with an `aria-label` of "title, time, room".
+- Each card's primary button has an `aria-label` of "title, time, location" plus "Zapisy" or "Brak miejsc" when a badge is shown; the star is a separate tab stop with `aria-pressed`.
 - Sheets use `role="dialog"` with `aria-modal`, focus trap and focus restore.
-- The now line and live pills are decorative; the live chip in the top bar carries the text.
+- The now line, live pills and continuation stubs are decorative; the live chip in the top bar carries the text.
 - Colour never carries meaning alone: signup and conflicts have text or icons, types have labels in the detail panel.
-- All interactive targets are at least 44 by 44 px on touch devices.
+- All interactive targets are at least 44 by 44 px on coarse pointers; the star's hit area is padded to 44 px even where its glyph is smaller.
 - Reduced motion disables the pulse, the entrance stagger and the crossfades.
 
 ### 7.10 Responsive summary
@@ -383,17 +468,16 @@ Segmented controls and sliders for every `Settings` field except `theme`, which 
 | tier | width | filters | default view | grid columns |
 |---|---|---|---|---|
 | wide | ≥ 1100 px | sidebar | grid | by location |
-| medium | 700–1099 px | drawer | grid | by location, horizontal scroll |
-| mobile | < 700 px | bottom sheet | list | none (single column with lanes); location available with horizontal swipe |
+| medium | 700–1099 px | drawer | grid | by location, horizontal scroll inside the grid |
+| mobile | < 700 px | bottom sheet | list | none (single column; in timeline mode lanes scroll horizontally inside the grid); location available with horizontal swipe |
 
 ## 8. Visual design
 
-**Tokens** in `src/styles/tokens.css`, dark values on `:root`, light values under `[data-theme="light"]`, and `prefers-color-scheme` honoured when `theme` is `system` by setting `data-theme` from JavaScript at boot.
+**Tokens** in `src/styles/tokens.css`, dark values on `:root`, light values under `[data-theme="light"]`; when `theme` is `system`, `data-theme` is set from `prefers-color-scheme` at boot and on change.
 
-- Ground `oklch(14% 0.01 60)`, surface 1 `oklch(19% 0.012 60)`, surface 2 `oklch(24% 0.014 60)`, border `oklch(32% 0.02 60)`, text `oklch(96% 0.01 80)`, muted text `oklch(72% 0.02 80)`.
-- Accent (brand orange) `oklch(70% 0.2 45)`, accent hover `oklch(76% 0.2 45)`, on-accent `oklch(14% 0.02 45)`.
-- Type hues at lightness 72 % and chroma 0.16 in dark, lightness 55 % in light: Prelekcja 45 (orange), Prelekcja z sesją 25 (red-orange), Warsztaty 340 (magenta), Fotospacer and Fotogra 95 (yellow), PLAYGROUND 175 (teal), DZIAŁANIA W STREFIE SPRZĘTU 240 (blue), STREFA TELEOBIEKTYWÓW 260, Ogólne 0 chroma (neutral). Location and brand colouring assign hues by hashing the id into 12 evenly spaced hues.
-- Status: success `oklch(75% 0.17 150)`, danger `oklch(68% 0.2 25)`, warning `oklch(80% 0.16 85)`.
+- Dark: ground `oklch(14% 0.01 60)`, surface 1 `oklch(19% 0.012 60)`, surface 2 `oklch(24% 0.014 60)`, border `oklch(32% 0.02 60)`, text `oklch(96% 0.01 80)`, muted text `oklch(72% 0.02 80)`, accent `oklch(70% 0.2 45)`, accent hover `oklch(76% 0.2 45)`, on-accent `oklch(14% 0.02 45)`, success `oklch(75% 0.17 150)`, danger `oklch(68% 0.2 25)`, warning `oklch(80% 0.16 85)`.
+- Light: ground `oklch(98% 0.005 80)`, surface 1 `oklch(100% 0 0)`, surface 2 `oklch(95% 0.01 80)`, border `oklch(86% 0.015 80)`, text `oklch(20% 0.02 60)`, muted text `oklch(45% 0.02 60)`, accent `oklch(60% 0.2 45)`, accent hover `oklch(54% 0.2 45)`, on-accent `oklch(98% 0.01 45)`; status colours keep hue and chroma at lightness 45 %.
+- Type hues at lightness 72 % and chroma 0.16 in dark, lightness 55 % in light: Prelekcja 45 (orange), Prelekcja z sesją 25 (red-orange), Warsztaty 340 (magenta), Fotospacer and Fotogra 95 (yellow), PLAYGROUND 175 (teal), DZIAŁANIA W STREFIE SPRZĘTU 240 (blue), STREFA TELEOBIEKTYWÓW 260, Ogólne 0 chroma (neutral), any other type 300. Location and brand colouring assign hues by hashing the id into 12 evenly spaced hues.
 - Radii 8 px (cards), 12 px (sheets, popovers), 999 px (chips). Shadows two layers, stronger on hover.
 
 **Typography.** Bricolage Grotesque 500 to 800 for the mark, day tabs, slot labels, section headings and big times; Inter 400 to 600 for everything else. Google Fonts `<link>` with `display=swap` and fallbacks `system-ui, -apple-system, Segoe UI, Roboto, sans-serif`. Base size 15 px, cards 13 px, minimum 12 px.
@@ -401,18 +485,18 @@ Segmented controls and sliders for every `Settings` field except `theme`, which 
 **Eye-candy, all cheap.**
 
 - A soft radial orange glow behind the top bar, 30 % opacity dark, 12 % light.
-- A fixed full-page SVG `feTurbulence` grain at 4 % opacity, `pointer-events: none`, skipped on mobile for performance.
+- A fixed full-page SVG `feTurbulence` grain at 4 % opacity, `pointer-events: none`, skipped under 700 px for performance.
 - Sticky headers use `backdrop-filter: blur(12px)` over a semi-transparent surface.
-- Card entrance on day or filter change: opacity and 6 px translate, 180 ms, staggered 12 ms per card up to 240 ms total.
+- Card entrance on day or filter change: opacity and 6 px translate, 180 ms, staggered 12 ms per card up to 240 ms total; exit is the reverse over 120 ms.
 - Star toggle scales 1 → 1.3 → 1 over 250 ms with a spring-like cubic-bezier.
 - Live cards pulse their outline over 2 s.
-- Day and view switches crossfade over 160 ms.
+- Day and view switches, and a change of the resolved time mode caused by a day, facet, tolerance or time-mode change, crossfade the grid over 160 ms.
 - All motion is wrapped in `@media (prefers-reduced-motion: no-preference)`.
 
 ## 9. Error handling and edge cases
 
 - A session without a start never breaks layout: it goes to the "Bez godziny" strip or list group.
-- A session ending before midnight but spanning the padded range is clamped to the range.
+- The timeline range derives from the layout set, so no card exceeds it; nothing is clamped.
 - Speaker photo load errors swap in an initials avatar with the same hue as the card.
 - Storage failures degrade to memory with one toast.
 - Unknown session ids in storage or share links are dropped with a count in a toast or banner.
@@ -422,22 +506,40 @@ Segmented controls and sliders for every `Settings` field except `theme`, which 
 
 ## 10. Testing
 
-Vitest with `jsdom` for component tests and node environment for domain tests.
+Vitest with `jsdom` for component tests and node environment for domain and script tests.
 
 Domain tests (each case a named `it`):
 
-- `time`: range formatting, duration labels, all-day and point detection.
-- `slots`: clustering with the gap and span guards, row spans including a 09:30–16:00 workshop, the six calibration fixtures from section 5.2 loaded from a JSON fixture of real start times, and `distinguishable` for each.
-- `overlaps`: pairwise overlap including touching ends (10:00–11:00 and 11:00–12:00 do not overlap), lane packing for a three-way overlap, components with a bridging session, plan conflicts.
-- `filters`: facet AND/OR semantics, diacritic-insensitive search (`swiatlo` finds `Światło`), favourites-only, all-day hiding, facet counts excluding their own facet.
-- `share`: round trip, unknown ids counted, bad version ignored.
-- `ics`: header, one event per session, folding of a long summary, CRLF.
-- `text`: one heading per day, chronological lines.
-- `now`: override parsing, live state boundaries, default day selection before, during and after the festival.
+- `time`: range formatting, duration labels including whole hours and null end, point detection, `isAllDay` reading the flag.
+- `slots`: clustering with the gap and span guards; row spans including a 09:30–16:00 workshop against the Friday slot rows; the eight calibration sets from section 5.2 loaded from `src/test/fixtures/slot-sets.json`, asserting slot count, `medianGap`, `sharedRatio` to two decimals and `distinguishable`; a `spanAllowed(session, columnSessions, slots)` helper returning false when any other interval in the column intersects.
+- `overlaps`: pairwise overlap including touching ends (10:00–11:00 and 11:00–12:00 do not overlap), all-day exclusion, lane packing for a three-way overlap, packing ends respecting `minMinutes`, components with a bridging session, `maxConcurrency`, plan conflicts.
+- `normalize` and `filters`: `swiatlo` finds `Światło`, `pawel` finds `Paweł`; facet AND/OR semantics; the signup facet by status; favourites-only; all-day hiding; `ignoreQuery` and `ignoreFavourites`; facet counts excluding their own facet while applying the query.
+- `share`: round trip; unknown ids counted; unmapped day code counted; bad version ignored.
+- `ics`: header properties, one event per session, escaping of commas and semicolons in a real title, folding of a long summary without splitting a multi-byte character, CRLF.
+- `text`: one heading per day, chronological lines, no-start sessions last.
+- `now`: override parsing with and without offset, live state at each boundary (`now == start`, `now == end`, `start - now == 15`, point session), default day before, during and after the festival.
 
-Script tests (`scripts/__tests__`): time parsing against the raw paragraph strings observed in the data (`17:00-19:00, Sony <a ...>Zapisz się</a>`, `09:30`, `13:30, Cyfrowe.pl`, en dash variants), speaker anchor extraction, byline cleanup, location parsing for all 26 names, sanitizer allowlist behaviour, day parsing.
+Script tests (`scripts/__tests__`):
 
-Component tests (React Testing Library): star toggle updates the plan tab badge and persists; a filter chip removal restores the sessions; the detail panel lists the correct overlapping sessions for a known fixture; the share banner offers load and preview; timeline mode positions a 60-minute card at the expected height for a given zoom.
+- time parsing against the raw first paragraphs observed in the data (`17:00-19:00, Sony <a ...>Zapisz się</a>`, `09:30`, `13:30, Cyfrowe.pl`, en dash and em dash variants, `end <= start`);
+- first non-empty paragraph selection when the first `<p>` is blank;
+- speaker resolution: a `jimmy-salatka` anchor with text "Biliński Emil" resolves to speaker 134 by name; the 39590 anchor (`data-type="link"`, URL in `data-id`) resolves to 128 by name; the 41154 event-page anchor "Blank Filip" resolves to 293; the 46769 anchor resolves by slug and its wrong `data-id` is ignored; "Leja Michal" matches "Michał Leja"; a stale-slug anchor with ambiguous text and a valid numeric `data-id` resolves by `data-id`; an anchor matching two speakers with no usable `data-id` stays unresolved and keeps its text in the byline;
+- byline cleanup for the three examples in 4.2;
+- all-day classification: a 09:00–18:00 `Ogólne` session is all-day; a 09:30–16:00 `Warsztaty` session is not; a 09:30–14:30 `Warsztaty` session (exactly 300 minutes) is not; a 09:30 `Ogólne` point session is not; a 09:30–18:00 session with types `Ogólne` and `STREFA TELEOBIEKTYWÓW` is all-day;
+- location parsing for all 26 names against `scripts/__tests__/locations.fixture.json`, written by hand from the rules and the table in 4.2 (one `it` per id, asserting venue, level, room and short); in particular 307 → `I+II`, 309, 310 and 313 → `II`, 308 → `I`, 312 → `null`;
+- sanitizer allowlist behaviour and the `<hr>` rule for dash paragraphs ending in an en dash;
+- day parsing including `label`, `short` and `labelLong`.
+
+Component tests (React Testing Library):
+
+- star toggle on a card updates the plan tab badge and persists across a store reload;
+- removing a filter chip restores the sessions;
+- the detail panel lists the correct overlapping sessions for a known fixture and none of the all-day zones;
+- the share banner offers load and preview; preview hides stars and "Udostępnij";
+- timeline mode positions a 60-minute card at `60 × zoom` px tall; a column with an 8-lane component is 8 × `laneMin` wide with `laneMin`-wide cards, and a 2-lane component in the same column gets half-width cards; the grid's scroll container, not the document, carries the horizontal overflow at 390 px;
+- slot mode with tolerance 15 and the `none` axis: sessions 09:30–10:45, 10:15–11:30 and 11:00–12:15 produce rows 09:30, 10:15, 11:00; the first two each yield one card in their start row and one `aria-hidden` stub in the following row, the third yields one card and no stub, every wrapper lists stubs before cards, and no wrapper holds two elements for the same session; with the Friday lectures fixture and axis `type` the 13:20–14:20 card is confined with a stub in the 13:40 row, and with axis `location` it spans two rows; no two rendered cards have intersecting bounding boxes;
+- the print section is present in both plan layouts;
+- no `validateDOMNesting` warning is logged while rendering a grid with cards.
 
 Build check: `npm run build` must produce `dist/index.html` under 1.5 MB, verified by a small script run in `npm run check`.
 
@@ -454,25 +556,25 @@ conference-melt/
   index.html
   scripts/
     fetch-schedule.ts
-    lib/                    parse.ts, sanitize.ts, locations.ts (tested)
-    __tests__/
+    lib/                    parse.ts, sanitize.ts, locations.ts, speakers.ts (tested)
+    __tests__/              including locations.fixture.json
   src/
     main.tsx
     App.tsx
     data/schedule.json
-    domain/                 time, slots, overlaps, filters, plan, share, ics, text, now
+    domain/                 time, slots, overlaps, normalize, filters, plan, share, ics, text, now
     state/store.ts
     components/
       shell/                TopBar, DayTabs, ViewSwitcher, BottomBar, LiveChip, Toasts
-      grid/                 ScheduleGrid, TimeRail, ColumnHeader, SessionCard, NowLine, AllDayStrip
+      grid/                 ScheduleGrid, TimeRail, ColumnHeader, SessionCard, ContinuationStub, NowLine, Strips
       list/                 ScheduleList
-      plan/                 PlanView, PlanSummary, ConflictsPanel, PlanActions, ShareBanner
+      plan/                 PlanView, PlanSummary, ConflictsPanel, PlanActions, ShareBanner, PrintPlan
       detail/               DetailSheet, SpeakerBlock, SameTimeList
       filters/              FiltersPanel, Facet
-      settings/             SettingsPopover
-      ui/                   Sheet, Popover, Chip, Avatar, Segmented, Slider, Toggle, EmptyState
+      settings/             SettingsPanel
+      ui/                   Sheet, Popover, Chip, Avatar, Segmented, Slider, Toggle, EmptyState, CopySheet
     styles/                 tokens.css, base.css, print.css
-    test/                   component tests and fixtures
+    test/                   component tests and fixtures (slot-sets.json)
   docs/superpowers/specs/
 ```
 
@@ -482,11 +584,11 @@ npm scripts: `dev`, `build`, `preview`, `test`, `test:watch`, `typecheck`, `fetc
 
 ## 12. Acceptance criteria
 
-1. `src/data/schedule.json` holds all 153 events as 163 sessions with parsed times, and `npm run fetch` regenerates it.
+1. `src/data/schedule.json` holds all 153 events as 163 sessions with parsed times, every speaker anchor resolved, and `npm run fetch` regenerates it.
 2. Opening `dist/index.html` from disk renders the schedule with no build tools present.
-3. Simultaneous sessions are visible as side-by-side lanes in the timeline, as shared cells in the slot grid, as "N równolegle" groups in the list, and as the "W tym samym czasie" list in the detail panel.
+3. Simultaneous sessions are visible as side-by-side lanes in the timeline, as shared cells in the slot grid, as "M równolegle" counts in the list, and as the "W tym samym czasie" list in the detail panel. No two cards ever overlap on screen.
 4. A star on any card or in the detail panel adds the session to the plan, survives a reload, and the plan tab badge updates.
-5. The plan view shows favourites in grid and list form, lists conflicts with resolution buttons, and offers share link, text copy, .ics download and print.
-6. With the type filter set to Prelekcja on Saturday, auto mode renders a slot grid with eight rows; with no filters it renders a timeline. Forcing either mode works.
-7. Column axis, time mode, tolerance, zoom, density, colour-by, avatars, all-day strip and theme are all changeable and persisted.
+5. The plan view shows the plan in grid and list form, lists conflicts with removal and undo, and offers text copy, share link, .ics download and print.
+6. With the type filter set to Prelekcja on Saturday, auto mode renders a slot grid with eight rows; with no filters it renders a timeline. Forcing either mode works and never produces overlapping cards.
+7. Column axis, time mode, tolerance, zoom, density, colour-by, avatars, all-day strip, plan layout and theme are all changeable and persisted.
 8. The layout is usable and attractive at 1440 px, 900 px and 390 px widths, with no horizontal page scroll on mobile.
