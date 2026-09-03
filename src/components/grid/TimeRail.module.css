@@ -1,0 +1,28 @@
+.rail {
+  position: relative;
+  width: var(--rail-width);
+  border-right: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hour {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tick {
+  position: absolute;
+  right: 0;
+  width: 8px;
+  height: 1px;
+  background: var(--border);
+}

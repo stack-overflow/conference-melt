@@ -1,0 +1,53 @@
+/* The scroll container is the grid: corner + headers in row 1, rail + bodies in row 2 (spec §7.2). */
+.scroller {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+.corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.rail {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.body {
+  position: relative;
+  border-right: 1px solid var(--border);
+  /* one guide line per half hour, aligned to the 15-minute range padding */
+  background-image: linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px);
+  background-size: 100% var(--half-hour);
+  background-position: 0 calc(var(--half-hour) / 2);
+}
+
+.body > article {
+  position: absolute;
+}
