@@ -1,0 +1,53 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-chip);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.accent {
+  background: color-mix(in oklch, var(--accent) 18%, var(--surface-2));
+  border-color: color-mix(in oklch, var(--accent) 40%, var(--border));
+}
+
+.hasRemove {
+  padding-right: 4px;
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24ch;
+}
+
+.remove {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
+.remove:hover {
+  background: var(--surface-1);
+  color: var(--text);
+}
+
+@media (pointer: coarse) {
+  .chip {
+    height: 36px;
+  }
+
+  .remove {
+    width: 32px;
+    height: 32px;
+  }
+}

@@ -9,24 +9,25 @@
   margin: 0;
 }
 
-html {
+html,
+body,
+#root {
   height: 100%;
+}
+
+html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100%;
   font-family: var(--font-body);
   font-size: var(--text-base);
   line-height: 1.4;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-}
-
-#root {
-  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 h1,
@@ -61,7 +62,7 @@ button {
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
 }
 
 :focus-visible {

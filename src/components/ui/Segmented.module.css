@@ -1,0 +1,37 @@
+.group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.option {
+  flex: 1 0 auto;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.option:hover {
+  color: var(--text);
+}
+
+.option[aria-checked="true"] {
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+@media (pointer: coarse) {
+  .option {
+    min-height: 44px;
+  }
+}

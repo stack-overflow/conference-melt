@@ -1,0 +1,32 @@
+.avatar {
+  --avatar-hue: 60;
+  --avatar-chroma: 0;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 999px;
+  background: oklch(35% var(--avatar-chroma) var(--avatar-hue));
+  color: oklch(92% 0.02 var(--avatar-hue));
+  box-shadow: 0 0 0 2px var(--surface-1);
+  font-family: var(--font-body);
+  font-weight: 600;
+  line-height: 1;
+}
+
+[data-theme="light"] .avatar {
+  background: oklch(88% var(--avatar-chroma) var(--avatar-hue));
+  color: oklch(35% 0.04 var(--avatar-hue));
+}
+
+.img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.initials {
+  font-size: 0.4em;
+  letter-spacing: 0.02em;
+}
