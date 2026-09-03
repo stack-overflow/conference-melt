@@ -1,0 +1,236 @@
+[
+  {
+    "id": 233,
+    "name": "So Salsa - poziom II - Sala wykładowa nr 1",
+    "venue": "So Salsa",
+    "level": "II",
+    "room": "Sala wykładowa nr 1",
+    "short": "Sala wykł. 1",
+    "rule": 1
+  },
+  {
+    "id": 234,
+    "name": "Studio na ringu - poziom II - Sala warsztatowa II",
+    "venue": "Studio na ringu",
+    "level": "II",
+    "room": "Sala warsztatowa II",
+    "short": "Warsztat. II (ring)",
+    "rule": 1
+  },
+  {
+    "id": 235,
+    "name": "Studio Luksfera - Sala warsztatowa III",
+    "venue": "Studio Luksfera",
+    "level": null,
+    "room": "Sala warsztatowa III",
+    "short": "Warsztat. III",
+    "rule": 5
+  },
+  {
+    "id": 236,
+    "name": "Studio Cukier by Luksfera - Sala warsztatowa IV",
+    "venue": "Studio Cukier by Luksfera",
+    "level": null,
+    "room": "Sala warsztatowa IV",
+    "short": "Warsztat. IV",
+    "rule": 5
+  },
+  {
+    "id": 237,
+    "name": "Studio Elektryków - Sala warsztatowa V",
+    "venue": "Studio Elektryków",
+    "level": null,
+    "room": "Sala warsztatowa V",
+    "short": "Warsztat. V",
+    "rule": 5
+  },
+  {
+    "id": 238,
+    "name": "Zero Zero - Sala warsztatowa VI",
+    "venue": "Zero Zero",
+    "level": null,
+    "room": "Sala warsztatowa VI",
+    "short": "Warsztat. VI",
+    "rule": 5
+  },
+  {
+    "id": 239,
+    "name": "Strefa sprzętu - poziom I",
+    "venue": "Strefa sprzętu",
+    "level": "I",
+    "room": null,
+    "short": "Strefa sprzętu I",
+    "rule": 4
+  },
+  {
+    "id": 240,
+    "name": "Strefa sprzętu - poziom II",
+    "venue": "Strefa sprzętu",
+    "level": "II",
+    "room": null,
+    "short": "Strefa sprzętu II",
+    "rule": 4
+  },
+  {
+    "id": 241,
+    "name": "Playground Cyfrowe.pl - poziom II",
+    "venue": "Playground Cyfrowe.pl",
+    "level": "II",
+    "room": null,
+    "short": "Playground",
+    "rule": 4
+  },
+  {
+    "id": 279,
+    "name": "Klub bokserski - poziom II - Sala wykładowa nr 4",
+    "venue": "Klub bokserski",
+    "level": "II",
+    "room": "Sala wykładowa nr 4",
+    "short": "Sala wykł. 4",
+    "rule": 1
+  },
+  {
+    "id": 280,
+    "name": "W4 - poziom I - Sala wykładowa nr 5",
+    "venue": "W4",
+    "level": "I",
+    "room": "Sala wykładowa nr 5",
+    "short": "Sala wykł. 5",
+    "rule": 1
+  },
+  {
+    "id": 281,
+    "name": "SoSalsa - poziom II - Sala wykładowa nr 2",
+    "venue": "SoSalsa",
+    "level": "II",
+    "room": "Sala wykładowa nr 2",
+    "short": "Sala wykł. 2",
+    "rule": 1
+  },
+  {
+    "id": 282,
+    "name": "Drizzly Grizzly - poziom 0 - Sala wykładowa nr 3",
+    "venue": "Drizzly Grizzly",
+    "level": "0",
+    "room": "Sala wykładowa nr 3",
+    "short": "Sala wykł. 3",
+    "rule": 1
+  },
+  {
+    "id": 283,
+    "name": "ZERO ZERO (przed wejściem)",
+    "venue": "ZERO ZERO (przed wejściem)",
+    "level": null,
+    "room": null,
+    "short": "Zero Zero · wejście",
+    "rule": 6
+  },
+  {
+    "id": 290,
+    "name": "ZERO ZERO Antresola - Sala warsztatowa VI",
+    "venue": "ZERO ZERO Antresola",
+    "level": null,
+    "room": "Sala warsztatowa VI",
+    "short": "Warsztat. VI (antresola)",
+    "rule": 5
+  },
+  {
+    "id": 291,
+    "name": "Wkrótce",
+    "venue": "Wkrótce",
+    "level": null,
+    "room": null,
+    "short": "Wkrótce",
+    "rule": 6
+  },
+  {
+    "id": 292,
+    "name": "Klub bokserski - poziom II - Sala warsztatowa II",
+    "venue": "Klub bokserski",
+    "level": "II",
+    "room": "Sala warsztatowa II",
+    "short": "Warsztat. II",
+    "rule": 1
+  },
+  {
+    "id": 293,
+    "name": "So Salsa - poziom II - Sala warsztatowa I",
+    "venue": "So Salsa",
+    "level": "II",
+    "room": "Sala warsztatowa I",
+    "short": "Warsztat. I",
+    "rule": 1
+  },
+  {
+    "id": 307,
+    "name": "Stoiska wystawców - poziom I (PLENUM) i poziom II (SOSALSA)",
+    "venue": "Stoiska wystawców",
+    "level": "I+II",
+    "room": "PLENUM · SOSALSA",
+    "short": "Stoiska · Plenum i SoSalsa",
+    "rule": 2
+  },
+  {
+    "id": 308,
+    "name": "Stoiska wystawców - poziom I (PLENUM)",
+    "venue": "Stoiska wystawców",
+    "level": "I",
+    "room": "PLENUM",
+    "short": "Stoiska · Plenum",
+    "rule": 3
+  },
+  {
+    "id": 309,
+    "name": "Stoiska wystawców - poziom II (SOSALSA)",
+    "venue": "Stoiska wystawców",
+    "level": "II",
+    "room": "SOSALSA",
+    "short": "Stoiska · SoSalsa",
+    "rule": 3
+  },
+  {
+    "id": 310,
+    "name": "Stoiska wystawców - poziom II (SOSALSA) - wyjście na dach",
+    "venue": "Stoiska wystawców",
+    "level": "II",
+    "room": "SOSALSA · wyjście na dach",
+    "short": "Stoiska · Dach",
+    "rule": 3
+  },
+  {
+    "id": 311,
+    "name": "Stoiska wystawców - poziom I (PLENUM) - Canon",
+    "venue": "Stoiska wystawców",
+    "level": "I",
+    "room": "PLENUM · Canon",
+    "short": "Stoiska · Canon",
+    "rule": 3
+  },
+  {
+    "id": 312,
+    "name": "W4",
+    "venue": "W4",
+    "level": null,
+    "room": null,
+    "short": "W4",
+    "rule": 6
+  },
+  {
+    "id": 313,
+    "name": "Stoiska wystawców - poziom II (SOSALSA) - Playground",
+    "venue": "Stoiska wystawców",
+    "level": "II",
+    "room": "SOSALSA · Playground",
+    "short": "Stoiska · Playground",
+    "rule": 3
+  },
+  {
+    "id": 318,
+    "name": "Rejestracja",
+    "venue": "Rejestracja",
+    "level": null,
+    "room": null,
+    "short": "Rejestracja",
+    "rule": 6
+  }
+]
