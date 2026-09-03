@@ -97,7 +97,11 @@ export function parseByline(text: string, timeText: string, removeTexts: string[
   for (const t of removeTexts) {
     if (t !== "") rest = rest.replace(t, "");
   }
-  const cleaned = rest.replace(/\s+/g, " ").replace(/^[\s,/]+/, "").replace(/[\s,/]+$/, "");
+  const cleaned = rest
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,/]+/, "")
+    .replace(/[\s,/]+$/, "")
+    .replace(/[\s,/]*[,/][\s,/]*/g, " / ");
   return cleaned === "" ? null : cleaned;
 }
 

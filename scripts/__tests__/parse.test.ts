@@ -241,6 +241,18 @@ describe("parseByline (spec §4.2 examples)", () => {
     expect(parseByline("Sorger Fabian", "", [])).toBe("Sorger Fabian");
     expect(parseByline("", "", [])).toBeNull();
   });
+
+  it("collapses the separator run left by a removed item between two kept items in a slash list", () => {
+    expect(parseByline("Sony / Speaker / Canon", "", ["Speaker"])).toBe("Sony / Canon");
+  });
+
+  it("is null when every item in a slash-joined list is removed", () => {
+    expect(parseByline("10:00-11:00, Speaker / Other", "10:00-11:00", ["Speaker", "Other"])).toBeNull();
+  });
+
+  it("collapses a comma-then-slash separator run into a single slash", () => {
+    expect(parseByline("A, / B", "", [])).toBe("A / B");
+  });
 });
 
 describe("signupStatusFromTerm", () => {
