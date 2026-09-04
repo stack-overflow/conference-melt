@@ -5,7 +5,10 @@
   bottom: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* minmax(0, 1fr): plain 1fr tracks floor at their content's min-content width, which can
+     push the grid past the viewport on narrow phones. minmax(0, …) removes that floor so all
+     four tabs always share the width equally. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   height: calc(var(--bottombar-height) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface-glass);
@@ -21,9 +24,19 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
+  min-width: 0;
   min-height: 44px;
   font-size: var(--text-min);
   color: var(--text-muted);
+}
+
+/* The label text (not the count badge, which is absolutely positioned and stays short):
+   truncate instead of wrapping or forcing the equal-width column wider than its share. */
+.item span:not(.badge) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item[aria-current="page"],

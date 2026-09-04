@@ -157,6 +157,17 @@
     min-height: 44px;
   }
 
+  /* The mark, icon buttons and live chip default to their natural size but must be able to
+     give up space (rather than staying rigid) so the bar never pushes content past the
+     viewport edge on narrow phones. */
+  .mark,
+  .button,
+  .live {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .bar[data-search-open="true"] .mark,
   .bar[data-search-open="true"] .widok,
   .bar[data-search-open="true"] .live {
