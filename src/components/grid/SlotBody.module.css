@@ -1,0 +1,83 @@
+/* The scroll container is the grid itself: row 1 headers, rows 2.. the slots (spec §7.2). */
+.scroller {
+  position: relative;
+  display: grid;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+.corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.railCell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: var(--rail-width);
+  padding: 8px 6px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.railStart {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.railRange {
+  color: var(--text-muted);
+  font-size: var(--text-min);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cell,
+.span {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.span > article {
+  flex: 1;
+}
+
+.more {
+  color: var(--text-muted);
+  font-size: 12px;
+}

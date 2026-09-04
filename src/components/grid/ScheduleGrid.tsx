@@ -11,6 +11,7 @@ import { Chip } from "../ui/Chip";
 import { EmptyState } from "../ui/EmptyState";
 import { cx } from "../ui/cx";
 import { coarsePointer, densityFor } from "./gridLayout";
+import { SlotBody } from "./SlotBody";
 import { TimelineBody } from "./TimelineBody";
 
 export interface ScheduleGridProps {
@@ -114,7 +115,11 @@ export function ScheduleGrid({ sets, columns, resolved, dayId }: ScheduleGridPro
         <GridEmpty sets={sets} />
       ) : (
         <div key={`${resolved.mode}:${dayId}`} className={styles.fade}>
-          <TimelineBody sets={sets} columns={columns} density={density} nowMinutes={nowMinutes} dayId={dayId} />
+          {resolved.mode === "slots" ? (
+            <SlotBody columns={columns} slots={resolved.slots} density={density} nowMinutes={nowMinutes} dayId={dayId} />
+          ) : (
+            <TimelineBody sets={sets} columns={columns} density={density} nowMinutes={nowMinutes} dayId={dayId} />
+          )}
         </div>
       )}
     </section>
