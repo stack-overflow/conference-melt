@@ -1,0 +1,103 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--warning) 45%, var(--border));
+  border-radius: var(--radius-sheet);
+  background: color-mix(in oklch, var(--warning) 8%, var(--surface-1));
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dayLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pairs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Sides stack below 700 px and sit side by side from 700 px up (spec §7.5). */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.side {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.time {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.location {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.remove {
+  justify-self: start;
+  margin-top: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.remove:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@media (min-width: 700px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (pointer: coarse) {
+  .remove {
+    min-height: 44px;
+  }
+}

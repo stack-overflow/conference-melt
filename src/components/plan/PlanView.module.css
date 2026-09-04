@@ -1,0 +1,106 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 12px 16px 0;
+}
+
+.previewBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sheet);
+  background: color-mix(in oklch, var(--accent) 14%, var(--surface-1));
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, var(--border));
+}
+
+.previewText {
+  flex: 1 1 240px;
+  font-weight: 600;
+}
+
+.previewActions {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-chip);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.primary:hover {
+  background: var(--accent-hover);
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.secondary:hover {
+  border-color: var(--text-muted);
+}
+
+/* The grid or list fills what is left; its own scroll container handles both axes. */
+.schedule {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0 -16px;
+}
+
+@media (max-width: 699.98px) {
+  .view {
+    padding: 10px 12px 0;
+  }
+
+  .schedule {
+    margin: 0 -12px;
+  }
+}
+
+@media (pointer: coarse) {
+  .primary,
+  .secondary {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .schedule {
+    animation: planFade 160ms ease-out;
+  }
+}
+
+@keyframes planFade {
+  from {
+    opacity: 0;
+  }
+}

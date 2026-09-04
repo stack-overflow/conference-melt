@@ -1,3 +1,9 @@
+/* Print support (spec §7.5). PrintPlan portals <section class="print-plan"> into <body>. */
+
+.print-plan {
+  display: none;
+}
+
 @media print {
   body > * {
     display: none !important;
@@ -5,25 +11,48 @@
 
   .print-plan {
     display: block !important;
+  }
+
+  @page {
+    margin: 15mm;
+  }
+
+  .print-plan {
+    margin: 0;
+    padding: 0;
     color: #000;
     background: #fff;
-    font: 12pt/1.4 Georgia, "Times New Roman", serif;
+    font: 12pt/1.4 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .print-plan h1 {
+    margin: 0 0 12pt;
+    font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+    font-size: 18pt;
+    font-weight: 700;
   }
 
   .print-plan h2 {
-    margin: 16pt 0 6pt;
+    margin: 14pt 0 6pt;
+    font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
     font-size: 14pt;
-    page-break-after: avoid;
+    font-weight: 600;
+    break-after: avoid;
   }
 
   .print-plan ul {
     margin: 0;
-    padding-left: 16pt;
+    padding: 0;
+    list-style: none;
   }
-}
 
-@media screen {
-  .print-plan {
-    display: none;
+  .print-plan li {
+    padding: 3pt 0;
+    border-bottom: 1pt solid #bbb;
+    break-inside: avoid;
+  }
+
+  .print-plan p {
+    margin: 0;
   }
 }
