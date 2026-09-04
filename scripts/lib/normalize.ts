@@ -174,7 +174,8 @@ function parseEvent(event: WpEvent, ctx: SessionContext, warnings: string[]): Ev
   }
 
   const anchors = extractAnchors(firstHtml);
-  const signupAnchor = anchors.find((anchor) => !isSiteHost(anchor.host)) ?? null;
+  // A relative or malformed href has no host: it is not the external signup link.
+  const signupAnchor = anchors.find((anchor) => anchor.host !== "" && !isSiteHost(anchor.host)) ?? null;
   const removeTexts: string[] = signupAnchor === null ? [] : [stripTags(signupAnchor.text)];
   const speakerIds: number[] = [];
   for (const anchor of anchors) {

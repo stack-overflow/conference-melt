@@ -43,8 +43,8 @@ describe("ScheduleList", () => {
     renderList([morning, afternoon]);
     expect(screen.getByRole("heading", { name: "09:30" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "13:00–14:00" })).toBeTruthy();
-    expect(screen.getByText("3 wydarzeń")).toBeTruthy();
-    expect(screen.getByText("1 wydarzeń")).toBeTruthy();
+    expect(screen.getByText("3 wydarzenia")).toBeTruthy();
+    expect(screen.getByText("1 wydarzenie")).toBeTruthy();
   });
 
   it("shows M równolegle only when M is at least 2 and differs from N", () => {

@@ -107,7 +107,11 @@ describe("forced slot mode on the synthetic spec §10 set", () => {
     renderGrid(data);
     const grid = document.querySelector<HTMLElement>('[data-scroll-container="slots"]');
     expect(grid?.style.gridTemplateRows).toBe("auto");
-    expect(grid?.style.gridAutoRows).toBe("minmax(88px, auto)");
+    // The rows size to their content; the row floor is a per-cell min-height, so a row can grow
+    // inside a scroller that has no free space to hand out (a fixed track minimum never would).
+    expect(grid?.style.gridAutoRows).toBe("minmax(min-content, auto)");
+    // The floor rides on the cells as `min-height: var(--row-min)`; the grid publishes the value.
+    expect(grid?.style.getPropertyValue("--row-min")).toBe("88px");
   });
 
   it("confines the first two sessions with one stub each and gives the third a bare card", () => {

@@ -1,6 +1,7 @@
 import type { ListGroup } from "../../state/derive";
 import { useStore } from "../../state/store";
 import { prefersReducedMotion } from "../../state/useMediaQuery";
+import { events } from "../../domain/plural";
 import { useData } from "../../data/index";
 import { liveState, nowFor } from "../../domain/now";
 import { SessionCard } from "../grid/SessionCard";
@@ -66,7 +67,7 @@ export function ScheduleList({ groups }: Props) {
               <h2 id={headingId} className={styles.label}>
                 {g.label}
               </h2>
-              <span className={styles.meta}>{g.total} wydarzeń</span>
+              <span className={styles.meta}>{events(g.total)}</span>
               {showParallel ? <span className={styles.parallel}>{g.parallel} równolegle</span> : null}
             </header>
             <ul className={styles.rows}>

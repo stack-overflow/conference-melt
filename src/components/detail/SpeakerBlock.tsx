@@ -14,8 +14,8 @@ export function SpeakerBlock({ speaker }: Props) {
   return (
     <div className={styles.block}>
       <div className={styles.head}>
-        {/* Spec §7.6: the detail panel shows the large photo; the thumb is only the fallback here. */}
-        <Avatar name={speaker.name} src={speaker.photo ?? speaker.photoThumb} size={56} />
+        {/* The 56 px avatar takes the thumb when there is one; the full photo is only the fallback. */}
+        <Avatar name={speaker.name} src={speaker.photoThumb ?? speaker.photo} size={56} />
         <div className={styles.text}>
           <div className={styles.name}>{speaker.name}</div>
           {speaker.brands.length > 0 ? <div className={styles.brands}>{speaker.brands.join(" · ")}</div> : null}

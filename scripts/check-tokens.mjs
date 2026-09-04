@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Light-theme guard (spec §8): every `var(--name)` referenced from a CSS file under src/
+ * Custom-property guard (spec §8): every `var(--name)` referenced from a CSS file under src/
  * must be a token declared in src/styles/tokens.css, or a custom property declared
  * somewhere in src/ (a `--name:` declaration in any CSS file, or a "--name" string used
  * as a key in a TSX/TS style object, such as TimelineBody's `--half-hour`). Anything else

@@ -176,7 +176,7 @@ describe("ShareBanner", () => {
     const user = userEvent.setup();
     useStore.setState({ sharedPlan: { ids: ["1:pt", "5:sob"], unknown: 1 } });
     renderWithData(<ShareBanner />);
-    expect(screen.getByText("Ktoś udostępnił Ci plan: 2 wydarzeń")).not.toBeNull();
+    expect(screen.getByText("Ktoś udostępnił Ci plan: 2 wydarzenia")).not.toBeNull();
     expect(screen.getByText(/1 nie pasuje do tej wersji harmonogramu/)).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Wczytaj" }));
     expect(new Set(useStore.getState().favourites)).toEqual(new Set(["1:pt", "5:sob"]));

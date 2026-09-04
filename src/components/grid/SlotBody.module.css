@@ -1,5 +1,7 @@
 /* The scroll container is the grid itself: row 1 headers, rows 2.. the slots (spec §7.2). */
 .scroller {
+  /* Wider than the timeline rail so the slot range label "09:20–09:30" fits on one line. */
+  --rail-width: 84px;
   position: relative;
   display: grid;
   align-content: start;
@@ -40,6 +42,7 @@
   flex-direction: column;
   gap: 2px;
   width: var(--rail-width);
+  min-height: var(--row-min);
   padding: 8px 6px;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -68,6 +71,7 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  min-height: var(--row-min);
   padding: 6px;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);

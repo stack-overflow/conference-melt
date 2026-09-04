@@ -1,6 +1,7 @@
 import { Share2, X } from "lucide-react";
 import styles from "./ShareBanner.module.css";
 import { useStore } from "../../state/store";
+import { events } from "../../domain/plural";
 
 export function ShareBanner() {
   const shared = useStore((s) => s.sharedPlan);
@@ -19,7 +20,7 @@ export function ShareBanner() {
           <span>Ten link wskazuje na wersję harmonogramu, która już nie pasuje do tej. Nie udało się wczytać żadnego wydarzenia.</span>
         ) : (
           <>
-            <strong>{`Ktoś udostępnił Ci plan: ${count} wydarzeń`}</strong>
+            <strong>{`Ktoś udostępnił Ci plan: ${events(count)}`}</strong>
             {shared.unknown > 0 && (
               <span className={styles.muted}>{` · ${shared.unknown} nie pasuje do tej wersji harmonogramu`}</span>
             )}

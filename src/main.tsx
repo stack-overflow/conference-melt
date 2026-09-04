@@ -8,6 +8,7 @@ import { DataProvider, data, index, search } from "./data/index";
 import { STORAGE_KEY, useStore, type SharedPlan, type View } from "./state/store";
 import { resolveBoot } from "./state/boot";
 import { clock } from "./state/clock";
+import { plural } from "./domain/plural";
 import { parseHash, writeHash, type HashState } from "./state/hash";
 import { applyTheme, watchSystemTheme } from "./state/theme";
 
@@ -56,7 +57,14 @@ function boot(): void {
     now,
   });
   if (resolved.droppedFavourites > 0) {
-    initial.pushToast(`Pominięto ${resolved.droppedFavourites} zapisanych wydarzeń, których nie ma w tej wersji harmonogramu`);
+    const n = resolved.droppedFavourites;
+    const noun = plural(
+      n,
+      "zapisane wydarzenie, którego nie ma",
+      "zapisane wydarzenia, których nie ma",
+      "zapisanych wydarzeń, których nie ma",
+    );
+    initial.pushToast(`Pominięto ${n} ${noun} w tej wersji harmonogramu`);
   }
   if (initial.storageFailed) initial.pushToast(STORAGE_TOAST);
   useStore.subscribe((state, previous) => {

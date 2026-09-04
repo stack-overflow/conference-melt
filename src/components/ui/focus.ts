@@ -1,12 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
-/** Internal, used only by Sheet and Popover. Tabbable descendants of `root` in DOM order. */
+/**
+ * Internal, used only by Sheet and Popover. Tabbable descendants of `root` in DOM order.
+ * A closed `<details>` hides everything but its own `<summary>`, so its contents are dropped:
+ * focusing them is a no-op and would park the trap on an invisible element.
+ */
 export function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => !el.hasAttribute("hidden") && el.getAttribute("aria-hidden") !== "true",
+    (el) =>
+      !el.hasAttribute("hidden") &&
+      el.getAttribute("aria-hidden") !== "true" &&
+      (el.tagName === "SUMMARY" || el.closest("details:not([open])") === null),
   );
 }
 

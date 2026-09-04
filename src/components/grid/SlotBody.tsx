@@ -5,6 +5,7 @@ import type { Slot } from "../../domain/slots";
 import { formatRange, formatTime } from "../../domain/time";
 import type { Column } from "../../state/derive";
 import { useStore } from "../../state/store";
+import { prefersReducedMotion } from "../../state/useMediaQuery";
 import { ColumnHeader } from "./ColumnHeader";
 import { ContinuationStub } from "./ContinuationStub";
 import { NowChip, NowLine } from "./NowLine";
@@ -12,7 +13,6 @@ import { SessionCard } from "./SessionCard";
 import {
   gridArea,
   nowScrollTop,
-  prefersReducedMotion,
   slotCells,
   slotPlacements,
   type Density,
@@ -86,11 +86,14 @@ export function SlotBody({ columns, slots, density, nowMinutes, dayId }: SlotBod
   }, [dayId, nowRow]);
 
   const track = axis === "none" ? "minmax(calc(100% - var(--rail-width)), auto)" : `${density.minColumnWidth}px`;
-  const style: CSSProperties = {
+  // Spec §7.2: a fixed row minimum only grows in the "maximize tracks" step, which a scroller with no
+  // free space never reaches, so the floor lives on the cells as `--row-min` and the tracks size to content.
+  const style = {
     gridTemplateColumns: `var(--rail-width) ${columns.map(() => track).join(" ")}`,
     gridTemplateRows: "auto",
-    gridAutoRows: `minmax(${density.rowMin}px, auto)`,
-  };
+    gridAutoRows: "minmax(min-content, auto)",
+    "--row-min": `${density.rowMin}px`,
+  } as CSSProperties;
 
   // Cards are numbered in DOM order, which is (column, row) order, for the entrance stagger.
   let order = 0;

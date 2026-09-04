@@ -2,6 +2,7 @@ import type { Session } from "../../data/types";
 import { useData } from "../../data/index";
 import { minutesUntil, nowFor } from "../../domain/now";
 import type { PlanSummary as PlanSummaryData } from "../../domain/plan";
+import { plural } from "../../domain/plural";
 import styles from "./PlanSummary.module.css";
 
 export interface PlanSummaryProps {
@@ -12,11 +13,7 @@ export interface PlanSummaryProps {
 
 /** Polish plural for "konflikt": 1 konflikt, 2–4 konflikty, 5+ konfliktów (22–24 → konflikty, 12–14 → konfliktów). */
 function conflictLabel(n: number): string {
-  const last = n % 10;
-  const lastTwo = n % 100;
-  if (n === 1) return "1 konflikt";
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${n} konflikty`;
-  return `${n} konfliktów`;
+  return `${n} ${plural(n, "konflikt", "konflikty", "konfliktów")}`;
 }
 
 export function PlanSummary({ summary, next, now }: PlanSummaryProps) {
@@ -30,7 +27,10 @@ export function PlanSummary({ summary, next, now }: PlanSummaryProps) {
   if (next !== null && next.start !== null) {
     const day = index.dayById.get(next.day);
     const nowMinutes = day ? nowFor(day, now) : null;
-    if (nowMinutes !== null) nextText = `Następne: ${next.title} za ${minutesUntil(next.start, nowMinutes)} min`;
+    if (nowMinutes !== null) {
+      const minutes = minutesUntil(next.start, nowMinutes);
+      nextText = minutes === 0 ? `Następne: ${next.title} teraz` : `Następne: ${next.title} za ${minutes} min`;
+    }
   }
 
   return (

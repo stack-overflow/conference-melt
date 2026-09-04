@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Location, Signup } from "../../data/types";
 import { useData } from "../../data/index";
-import { MOBILE_BREAKPOINT, usePlanSet, useStore } from "../../state/store";
+import { usePlanSet, useStore } from "../../state/store";
+import { useTier } from "../../state/useMediaQuery";
 import { durationLabel, formatRange } from "../../domain/time";
 import { locationsOf, speakersOf } from "../../domain/lookup";
 import { Sheet } from "../ui/Sheet";
@@ -25,17 +26,6 @@ function locationLine(l: Location): string {
   if (l.level !== null) parts.push(LEVEL_LABELS[l.level]);
   if (l.room !== null) parts.push(l.room);
   return parts.join(" · ");
-}
-
-/** "right" at 700 px and up, "bottom" below; follows window resizes. */
-function useSheetSide(): "right" | "bottom" {
-  const [wide, setWide] = useState(() => window.innerWidth >= MOBILE_BREAKPOINT);
-  useEffect(() => {
-    const onResize = () => setWide(window.innerWidth >= MOBILE_BREAKPOINT);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  return wide ? "right" : "bottom";
 }
 
 function SignupControl({ signup }: { signup: Signup }) {
@@ -64,7 +54,8 @@ export function DetailSheet() {
   const setSheet = useStore((s) => s.setSheet);
   const toggleFavourite = useStore((s) => s.toggleFavourite);
   const planSet = usePlanSet();
-  const side = useSheetSide();
+  // Spec §7.6: the sheet docks to the right except on mobile, where it slides up from the bottom.
+  const side = useTier() === "mobile" ? "bottom" : "right";
 
   const session = selectedId === null ? null : (index.sessionById.get(selectedId) ?? null);
   const open = openSheet === "detail" && session !== null;

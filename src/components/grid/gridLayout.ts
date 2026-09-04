@@ -4,6 +4,7 @@ import { rowInterval, spanAllowed } from "../../domain/slots";
 import { packLanes } from "../../domain/overlaps";
 import { roundDown, roundUp, visualEnd } from "../../domain/time";
 import type { Settings } from "../../state/store";
+import { COARSE_QUERY, matchesMedia } from "../../state/useMediaQuery";
 import type { Column } from "../../state/derive";
 
 export const RAIL_WIDTH = 56;
@@ -32,14 +33,7 @@ export function densityFor(density: Settings["density"], coarsePointer: boolean)
 
 /** Internal: true when the primary pointer is coarse; false when matchMedia is unavailable (jsdom). */
 export function coarsePointer(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(pointer: coarse)").matches;
-}
-
-/** Internal: true when the user asked for reduced motion; false when matchMedia is unavailable. */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return matchesMedia(COARSE_QUERY);
 }
 
 export interface TimelineRange {

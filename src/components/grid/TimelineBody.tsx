@@ -3,6 +3,7 @@ import styles from "./TimelineBody.module.css";
 import { formatTime } from "../../domain/time";
 import type { Column, DaySets } from "../../state/derive";
 import { useStore } from "../../state/store";
+import { prefersReducedMotion } from "../../state/useMediaQuery";
 import { ColumnHeader } from "./ColumnHeader";
 import { NowLine } from "./NowLine";
 import { SessionCard } from "./SessionCard";
@@ -10,7 +11,6 @@ import { TimeRail } from "./TimeRail";
 import {
   cardStyle,
   nowScrollTop,
-  prefersReducedMotion,
   sortByStartTitle,
   timelineGeometry,
   timelineRange,

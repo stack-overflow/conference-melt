@@ -69,7 +69,7 @@ export function SessionCard({ session, compact = false, showLocation, style, var
   const avatars = showAvatars ? speakers.slice(0, MAX_AVATARS) : [];
   // Spec §7.4: a list row falls back to the names while avatars are off; the other variants then show no speakers.
   const speakerNames = variant === "row" && !showAvatars ? speakers.map((speaker) => speaker.name).join(", ") : "";
-  const label = [session.title, time, location, badge?.text]
+  const label = [session.title, time, location, badge?.text, conflicts > 0 ? `nakłada się z ${conflicts} w planie` : null]
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(", ");
   const paintLocation = showLocation && location.length > 0;

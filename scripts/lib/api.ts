@@ -70,6 +70,8 @@ const TAXONOMIES: readonly TaxonomyName[] = [
 ];
 
 const PER_PAGE = 100;
+/** Internal: a stalled WP request aborts rather than hanging the fetch script forever. */
+const REQUEST_TIMEOUT_MS = 30_000;
 const PAGE_OVERFLOW_CODE = "rest_post_invalid_page_number";
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
@@ -102,6 +104,7 @@ async function wpErrorCode(res: Response): Promise<string | null> {
 export async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) throw new HttpError(url, res.status, await wpErrorCode(res));
   return (await res.json()) as T;

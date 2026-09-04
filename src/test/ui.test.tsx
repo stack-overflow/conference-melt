@@ -68,6 +68,36 @@ describe("Sheet", () => {
     expect(active()).toBe(second);
   });
 
+  it("keeps summaries in the focus order and skips the contents of a closed details", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button" onClick={() => undefined}>
+          Otwórz
+        </button>
+        <Sheet open side="right" title="Filtry" onClose={() => undefined}>
+          <details>
+            <summary>Tematyka</summary>
+            <input aria-label="Szukaj tematu" />
+          </details>
+          <button type="button">Po sekcji</button>
+        </Sheet>
+      </>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Filtry" });
+    const close = within(dialog).getByRole("button", { name: "Zamknij" });
+    const summary = within(dialog).getByText("Tematyka");
+    const after = within(dialog).getByRole("button", { name: "Po sekcji" });
+    pressTab();
+    expect(active()).toBe(close);
+    pressTab();
+    expect(active()).toBe(summary);
+    pressTab();
+    expect(active()).toBe(after);
+    expect(active()).not.toBe(within(dialog).getByLabelText("Szukaj tematu"));
+    await user.keyboard("{Escape}");
+  });
+
   it("closes on Escape and restores focus to the opener", async () => {
     const user = userEvent.setup();
     render(<SheetHarness />);
