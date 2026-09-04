@@ -1,0 +1,44 @@
+.strips {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+/* One row of chips, at most 44 px tall (spec §7.2); chips are 36 px, 44 px on coarse pointers. */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 12px;
+}
+
+.strip + .strip {
+  border-top: 1px solid var(--border);
+}
+
+.label {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.row::-webkit-scrollbar {
+  display: none;
+}

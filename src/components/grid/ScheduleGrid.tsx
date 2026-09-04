@@ -12,6 +12,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { cx } from "../ui/cx";
 import { coarsePointer, densityFor } from "./gridLayout";
 import { SlotBody } from "./SlotBody";
+import { Strips } from "./Strips";
 import { TimelineBody } from "./TimelineBody";
 
 export interface ScheduleGridProps {
@@ -111,6 +112,7 @@ export function ScheduleGrid({ sets, columns, resolved, dayId }: ScheduleGridPro
 
   return (
     <section className={styles.grid} aria-label="Siatka harmonogramu">
+      <Strips sets={sets} />
       {sets.rendered.length === 0 ? (
         <GridEmpty sets={sets} />
       ) : (
