@@ -1,5 +1,6 @@
 import type { ListGroup } from "../../state/derive";
 import { useStore } from "../../state/store";
+import { prefersReducedMotion } from "../../state/useMediaQuery";
 import { useData } from "../../data/index";
 import { liveState, nowFor } from "../../domain/now";
 import { SessionCard } from "../grid/SessionCard";
@@ -7,6 +8,14 @@ import styles from "./ScheduleList.module.css";
 
 /** DOM id of the first group with a live or soon session; that section also carries `data-live-group`, which the LiveChip queries in list view. */
 export const LIVE_GROUP_ID = "list-live";
+
+/** Spec §8: entrance stagger of 12 ms per row, capped at 240 ms (the same numbers as the grid bodies). */
+const STAGGER_MS = 12;
+const STAGGER_MAX_MS = 240;
+
+function enterDelay(order: number): string {
+  return `${Math.min(order * STAGGER_MS, STAGGER_MAX_MS)}ms`;
+}
 
 interface Props {
   groups: ListGroup[];
@@ -36,6 +45,10 @@ export function ScheduleList({ groups }: Props) {
 
   if (groups.length === 0) return null;
 
+  // Rows are numbered in DOM order across every group for the entrance stagger.
+  const animate = !prefersReducedMotion();
+  let order = 0;
+
   return (
     <div className={styles.list}>
       {groups.map((g) => {
@@ -57,11 +70,19 @@ export function ScheduleList({ groups }: Props) {
               {showParallel ? <span className={styles.parallel}>{g.parallel} równolegle</span> : null}
             </header>
             <ul className={styles.rows}>
-              {g.sessions.map((s) => (
-                <li key={s.id} className={styles.row}>
-                  <SessionCard session={s} showLocation variant="row" />
-                </li>
-              ))}
+              {g.sessions.map((s) => {
+                const delay = animate ? enterDelay(order++) : undefined;
+                return (
+                  <li key={s.id} className={styles.row}>
+                    <SessionCard
+                      session={s}
+                      showLocation
+                      variant="row"
+                      style={delay === undefined ? undefined : { animationDelay: delay }}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           </section>
         );

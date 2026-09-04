@@ -58,3 +58,10 @@
     transform: translateY(-4px);
   }
 }
+
+@media (pointer: coarse) {
+  .close {
+    width: 44px;
+    height: 44px;
+  }
+}

@@ -58,3 +58,10 @@
   padding: 12px 4px 0;
   border-top: 1px solid var(--border);
 }
+
+@media (pointer: coarse) {
+  .clearAll {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+}

@@ -5,6 +5,7 @@ import { usePlanSet, useStore } from "./state/store";
 import { clock } from "./state/clock";
 import { buildColumns, daySets, listGroups, resolveTimeMode } from "./state/derive";
 import { useTier } from "./state/useMediaQuery";
+import { Grain } from "./components/shell/Grain";
 import { TopBar } from "./components/shell/TopBar";
 import { DayTabs } from "./components/shell/DayTabs";
 import { ShareBanner } from "./components/shell/ShareBanner";
@@ -22,18 +23,6 @@ import { CopySheet } from "./components/ui/CopySheet";
 
 /** The store's `now` advances this often; the shared clock honours a ?now= override. */
 const CLOCK_INTERVAL_MS = 30_000;
-
-/** Spec §8: fixed full-page feTurbulence grain at 4 % opacity, skipped on mobile by the caller. */
-function Grain() {
-  return (
-    <svg className={styles.grain} aria-hidden="true" focusable="false">
-      <filter id="app-grain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#app-grain)" />
-    </svg>
-  );
-}
 
 export default function App() {
   const { data, index, search } = useData();
@@ -65,7 +54,7 @@ export default function App() {
 
   return (
     <div className={styles.app} data-view={view} data-tier={tier}>
-      {tier !== "mobile" && <Grain />}
+      <Grain />
       <TopBar />
       {tier === "mobile" && <DayTabs />}
       <ShareBanner />

@@ -63,3 +63,9 @@
     display: inline;
   }
 }
+
+@media (pointer: coarse) {
+  .tab {
+    min-height: 44px;
+  }
+}

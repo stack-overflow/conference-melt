@@ -174,3 +174,15 @@
     display: none;
   }
 }
+
+@media (pointer: coarse) {
+  .search {
+    min-height: 44px;
+  }
+
+  .inputClose {
+    width: 44px;
+    height: 44px;
+    margin-right: -10px;
+  }
+}

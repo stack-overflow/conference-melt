@@ -43,3 +43,9 @@
   font-size: var(--text-min);
   font-weight: 700;
 }
+
+@media (pointer: coarse) {
+  .item {
+    min-height: 44px;
+  }
+}

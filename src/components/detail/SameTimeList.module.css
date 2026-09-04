@@ -76,3 +76,9 @@
   right: 4px;
   transform: translateY(-50%);
 }
+
+@media (pointer: coarse) {
+  .main {
+    min-height: 44px;
+  }
+}

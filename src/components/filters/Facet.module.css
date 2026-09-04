@@ -158,4 +158,9 @@
   .option {
     min-height: 44px;
   }
+
+  .clear {
+    min-height: 44px;
+    padding: 0 12px;
+  }
 }
