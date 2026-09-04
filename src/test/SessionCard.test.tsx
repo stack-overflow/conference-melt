@@ -249,6 +249,22 @@ describe("SessionCard", () => {
     expect(screen.getByRole("button", { name: "Bez godziny sesja, Sala wykł. 1" })).not.toBeNull();
   });
 
+  it("row variant gives the title the flexible-sizing class so it wins space over the location", () => {
+    render(wrap(<SessionCard session={talk} variant="row" showLocation />));
+    const card = article("1:pt");
+    expect(card.classList.contains("row")).toBe(true);
+    const title = card.querySelector(".title");
+    expect(title).not.toBeNull();
+    expect(title?.textContent).toBe("Światło w studiu");
+    // The row-variant CSS scopes the title's flex: 1 1 auto (primary, wins space) and the
+    // meta's flex: 0 1 auto; max-width: 38% (secondary, capped) to ".row .title"/".row .meta";
+    // confirm both elements actually sit under the ".row" scope so those rules apply to them.
+    expect(title?.closest(".row")).toBe(card);
+    const meta = card.querySelector(".meta");
+    expect(meta).not.toBeNull();
+    expect(meta?.closest(".row")).toBe(card);
+  });
+
   it("logs no console.error while rendering a card in the plan with conflicts", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {

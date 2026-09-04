@@ -215,8 +215,19 @@
 }
 
 .row .title {
-  flex: 1;
+  /* Primary content (spec §7.4): wins the fight for space over the secondary meta/location
+     text below, which is capped instead of being allowed to claim its full natural width first. */
+  flex: 1 1 auto;
+  min-width: 0;
   -webkit-line-clamp: 2;
+}
+
+.row .meta {
+  /* Secondary: shrinks and truncates (via .location's own ellipsis) rather than pushing
+     the title into a sliver. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 38%;
 }
 
 .row .starSlot {
